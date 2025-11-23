@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from src.tools.youtube_tool import YouTubeTool
 from src.models.mcp import ToolExecutionContext
 from src.models.errors import MCPError, ErrorCode
-from youtube_transcript_api._errors import VideoUnavailable, NoTranscriptFound, InvalidVideoId
+from youtube_transcript_api._errors import VideoUnavailable, NoTranscriptFound, InvalidVideoId, TranscriptsDisabled
 import requests
 
 
@@ -121,6 +121,7 @@ async def test_handler_no_url(youtube_tool, mock_context):
     (VideoUnavailable("some_video"), ErrorCode.YOUTUBE_API_ERROR, "YouTube video not found or unavailable"),
     (NoTranscriptFound("some_video", requested_language_codes=[], transcript_data=[]), ErrorCode.TRANSCRIPT_NOT_AVAILABLE, "No transcript available for this video"),
     (requests.exceptions.RequestException("Network issue"), ErrorCode.YOUTUBE_API_ERROR, "Network error while contacting YouTube"),
+    (TranscriptsDisabled("some_video"), ErrorCode.TRANSCRIPT_NOT_AVAILABLE, "Transcripts are disabled for this video."),
 ])
 async def test_handler_api_errors(youtube_tool, mock_context, api_exception, expected_error_code, expected_error_message):
     """Test various errors from the YouTube Transcript API."""

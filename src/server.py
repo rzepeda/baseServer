@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from starlette import status
 from pydantic import BaseModel
+from jsonschema import validate, ValidationError as JSONSchemaValidationError
 
 from src.config import get_config
 from src.handlers.health import health_check
@@ -93,8 +94,18 @@ async def invoke_tool(request: Request) -> JSONResponse:
                 detail={"error": f"Tool '{tool_name}' not found", "error_code": "tool_not_found"}
             )
 
-        # TODO: Add Pydantic validation for parameters against tool.input_schema here
-        # For now, we'll assume parameters conform to the schema as validated by ToolRegistry on registration
+        # Validate parameters against tool's input schema
+        try:
+            validate(instance=parameters, schema=tool.input_schema)
+        except JSONSchemaValidationError as e:
+            bound_logger.warning("Parameter validation failed", tool_name=tool_name, error=str(e))
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": f"Invalid parameters: {e.message}",
+                    "error_code": "invalid_parameters"
+                }
+            )
 
         # Create ToolExecutionContext
         tool_context = ToolExecutionContext(
