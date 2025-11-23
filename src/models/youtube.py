@@ -1,6 +1,5 @@
 """YouTube-specific data models."""
 
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -9,7 +8,7 @@ class YouTubeURL(BaseModel):
     """YouTube URL validation model."""
 
     url: str = Field(..., description="YouTube video URL")
-    video_id: Optional[str] = Field(None, description="Extracted video ID")
+    video_id: str | None = Field(None, description="Extracted video ID")
 
     @field_validator("url")
     @classmethod

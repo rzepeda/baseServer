@@ -1,0 +1,27 @@
+schema: 1
+story: '1.2'
+story_title: 'Tool Registry and Plugin System'
+gate: CONCERNS
+status_reason: 'Critical security vulnerability: OAuth middleware is disabled for the /tools/invoke endpoint, allowing unauthenticated access.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2025-11-23T12:00:00Z'
+
+waiver: { active: false }
+
+top_issues:
+  - id: "SEC-001"
+    severity: high
+    finding: "Authentication is bypassed for the core /tools/invoke endpoint."
+    suggested_action: "Remove the temporary bypass in `src/middleware/oauth.py` and implement proper OAuth2 token validation before this story can be approved."
+
+nfr_validation:
+  security: { status: FAIL, notes: "Authentication bypass via modified oauth_middleware." }
+  performance: { status: PASS, notes: "" }
+  reliability: { status: PASS, notes: "" }
+  maintainability: { status: PASS, notes: "" }
+
+recommendations:
+  immediate:
+    - action: "Remediate the placeholder `oauth_middleware` to enforce authentication on all protected endpoints."
+      refs: ["src/middleware/oauth.py"]
+  future: []

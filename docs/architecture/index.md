@@ -32,6 +32,7 @@
     - [OAuth Middleware Component](./components.md#oauth-middleware-component)
     - [Tool Registry Component](./components.md#tool-registry-component)
     - [Base Tool Interface Component](./components.md#base-tool-interface-component)
+    - [Tool Development Guide](./how-to-add-tools.md)
     - [YouTube Tool Component](./components.md#youtube-tool-component)
     - [Error Handler Component](./components.md#error-handler-component)
     - [Logging Utility Component](./components.md#logging-utility-component)

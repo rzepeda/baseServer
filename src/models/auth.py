@@ -1,8 +1,7 @@
 """Authentication data models."""
 
-from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AuthContext(BaseModel):
@@ -13,9 +12,6 @@ class AuthContext(BaseModel):
     scopes: list[str] = Field(
         default_factory=list, description="OAuth token scopes"
     )
-    client_id: Optional[str] = Field(None, description="OAuth client ID")
+    client_id: str | None = Field(None, description="OAuth client ID")
 
-    class Config:
-        """Pydantic configuration."""
-
-        frozen = True  # Immutable after creation
+    model_config = ConfigDict(frozen=True)  # Immutable after creation

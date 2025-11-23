@@ -1,7 +1,6 @@
 """Error handling data models."""
 
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -35,10 +34,10 @@ class ErrorDetail(BaseModel):
 
     code: ErrorCode = Field(..., description="Error code")
     message: str = Field(..., description="Human-readable error message")
-    details: Optional[dict] = Field(
+    details: dict | None = Field(
         None, description="Additional error context"
     )
-    correlation_id: Optional[str] = Field(
+    correlation_id: str | None = Field(
         None, description="Request correlation ID"
     )
 
@@ -48,7 +47,7 @@ class MCPError(Exception):
     """Base exception for MCP server errors."""
 
     def __init__(
-        self, code: ErrorCode, message: str, details: Optional[dict] = None
+        self, code: ErrorCode, message: str, details: dict | None = None
     ) -> None:
         self.code = code
         self.message = message
@@ -67,7 +66,7 @@ class InvalidInputError(MCPError):
     """Invalid input provided."""
 
     def __init__(
-        self, message: str, details: Optional[dict] = None
+        self, message: str, details: dict | None = None
     ) -> None:
         super().__init__(ErrorCode.INVALID_INPUT, message, details)
 
@@ -76,6 +75,6 @@ class ToolExecutionError(MCPError):
     """Tool execution failed."""
 
     def __init__(
-        self, message: str, details: Optional[dict] = None
+        self, message: str, details: dict | None = None
     ) -> None:
         super().__init__(ErrorCode.TOOL_EXECUTION_ERROR, message, details)

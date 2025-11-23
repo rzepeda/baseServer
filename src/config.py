@@ -19,7 +19,7 @@ class Config(BaseSettings):
 
     # Server Configuration
     server_host: str = Field(default="0.0.0.0", description="Server bind address")
-    server_port: int = Field(default=8000, description="Server port", ge=1, le=65535)
+    server_port: int = Field(default=8080, description="Server port", ge=1, le=65535)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
         default="INFO", description="Logging level"
     )
@@ -35,7 +35,7 @@ class Config(BaseSettings):
     )
 
 
-@lru_cache()
+@lru_cache
 def get_config() -> Config:
     """Get cached configuration instance."""
-    return Config()
+    return Config()  # type: ignore[call-arg]

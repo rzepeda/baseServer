@@ -60,6 +60,40 @@ class TestYouTubeTool:
 - Remote access via Cloudflare Tunnel
 - Performance validation (<5s response time)
 
+## Running Tests Locally
+
+### Basic Test Execution
+
+Activate the virtual environment and run pytest:
+
+```bash
+source .venv/bin/activate && pytest
+```
+
+### With Coverage Report
+
+```bash
+source .venv/bin/activate && pytest --cov=src --cov-report=term-missing
+```
+
+### Running Specific Tests
+
+```bash
+# Run specific test file
+source .venv/bin/activate && pytest tests/unit/test_health_handler.py
+
+# Run specific test class or method
+source .venv/bin/activate && pytest tests/unit/test_health_handler.py::TestHealthHandler::test_health_check
+```
+
+### Test Configuration
+
+Test settings are defined in `pyproject.toml`:
+- Minimum pytest version: 8.0
+- Coverage target: 80% (src directory)
+- Test discovery path: `tests/`
+- Async mode: auto (for async test support)
+
 ## CI Integration
 
 Tests run in GitHub Actions on every push/PR:

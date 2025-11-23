@@ -44,6 +44,16 @@
 - Environment variables via `.env` file
 - Local port: `http://localhost:8080`
 
+**Running the Server Locally:**
+```bash
+source .venv/bin/activate && python -m src
+```
+
+**Running Tests Locally:**
+```bash
+source .venv/bin/activate && pytest
+```
+
 ### Production
 - Kubernetes cluster (2 MCP server pods, 1 tunnel pod)
 - OAuth credentials: Kubernetes Secret
