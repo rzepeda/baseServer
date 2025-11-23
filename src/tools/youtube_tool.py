@@ -1,12 +1,13 @@
 """Tool for fetching YouTube video transcripts."""
 
+import asyncio
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import requests
 from pydantic import ValidationError
 from youtube_transcript_api import YouTubeTranscriptApi  # type: ignore
-from youtube_transcript_api._errors import InvalidVideoId, NoTranscriptFound, VideoUnavailable  # type: ignore
+from youtube_transcript_api._errors import InvalidVideoId, NoTranscriptFound, TranscriptsDisabled, VideoUnavailable  # type: ignore
 
 from src.models.errors import ErrorCode, MCPError
 from src.models.mcp import ToolExecutionContext
@@ -65,16 +66,26 @@ class YouTubeTool(BaseMCPTool):
 
             context.logger.info("youtube_tool.video_id_extracted", video_id=video_id)
 
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            # Use new API (v1.2.3+): instantiate and call fetch()
+            api = YouTubeTranscriptApi()
+            fetched_transcript = await asyncio.to_thread(api.fetch, video_id)
 
-            segments = [YouTubeTranscriptSegment(**item) for item in transcript_list]
+            # Extract snippets from FetchedTranscript object
+            segments = [
+                YouTubeTranscriptSegment(
+                    text=snippet.text,
+                    start=snippet.start,
+                    duration=snippet.duration
+                )
+                for snippet in fetched_transcript.snippets
+            ]
             full_text = " ".join([segment.text for segment in segments])
 
             transcript = YouTubeTranscript(
-                video_id=video_id,
+                video_id=fetched_transcript.video_id,
                 segments=segments,
                 full_text=full_text,
-                language="en" # Assuming english for now, can be enhanced later
+                language=fetched_transcript.language_code
             )
 
             context.logger.info("youtube_tool.transcript_retrieved", video_id=video_id)

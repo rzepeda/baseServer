@@ -7,6 +7,7 @@ from typing import List
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from starlette import status
+from pydantic import BaseModel
 
 from src.config import get_config
 from src.handlers.health import health_check
@@ -58,7 +59,7 @@ app = FastAPI(
 )
 
 # Add OAuth middleware (applies to all routes except /health)
-# app.middleware("http")(oauth_middleware)
+app.middleware("http")(oauth_middleware)
 
 
 @app.get("/health")
@@ -105,6 +106,10 @@ async def invoke_tool(request: Request) -> JSONResponse:
         bound_logger.info("Invoking tool", tool_name=tool_name, parameters=parameters)
         result = await tool.handler(parameters, tool_context)
         bound_logger.info("Tool invocation successful", tool_name=tool_name)
+
+        # Serialize Pydantic models to dict for JSON response
+        if isinstance(result, BaseModel):
+            result = result.model_dump()
 
         return JSONResponse({"result": result})
 

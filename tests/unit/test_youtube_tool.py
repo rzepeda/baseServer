@@ -1,11 +1,28 @@
 import pytest
 from unittest.mock import patch, MagicMock
+from dataclasses import dataclass
 
 from src.tools.youtube_tool import YouTubeTool
 from src.models.mcp import ToolExecutionContext
 from src.models.errors import MCPError, ErrorCode
 from youtube_transcript_api._errors import VideoUnavailable, NoTranscriptFound, InvalidVideoId
 import requests
+
+
+@dataclass
+class MockSnippet:
+    """Mock FetchedTranscriptSnippet for testing."""
+    text: str
+    start: float
+    duration: float
+
+
+@dataclass
+class MockFetchedTranscript:
+    """Mock FetchedTranscript for testing."""
+    video_id: str
+    language_code: str
+    snippets: list
 
 
 @pytest.fixture
@@ -25,16 +42,24 @@ async def test_handler_success(youtube_tool, mock_context):
     """Test successful transcript retrieval."""
     url = "https://www.youtube.com/watch?v=ILUsEN_Slf0"
     params = {"url": url}
-    
-    mock_transcript = [
-        {"text": "Hello world", "start": 0.5, "duration": 2.0},
-        {"text": "This is a test", "start": 3.0, "duration": 2.5},
-    ]
 
-    with patch("src.tools.youtube_tool.YouTubeTranscriptApi.get_transcript", return_value=mock_transcript) as mock_get_transcript:
+    mock_snippets = [
+        MockSnippet(text="Hello world", start=0.5, duration=2.0),
+        MockSnippet(text="This is a test", start=3.0, duration=2.5),
+    ]
+    mock_transcript = MockFetchedTranscript(
+        video_id="ILUsEN_Slf0",
+        language_code="en",
+        snippets=mock_snippets
+    )
+
+    mock_api_instance = MagicMock()
+    mock_api_instance.fetch.return_value = mock_transcript
+
+    with patch("src.tools.youtube_tool.YouTubeTranscriptApi", return_value=mock_api_instance):
         result = await youtube_tool.handler(params, mock_context)
-        
-        mock_get_transcript.assert_called_with("ILUsEN_Slf0")
+
+        mock_api_instance.fetch.assert_called_once_with("ILUsEN_Slf0")
         assert result.video_id == "ILUsEN_Slf0"
         assert result.full_text == "Hello world This is a test"
         assert len(result.segments) == 2
@@ -51,7 +76,16 @@ async def test_handler_success(youtube_tool, mock_context):
 async def test_valid_url_formats(youtube_tool, mock_context, url, video_id):
     """Test various valid YouTube URL formats."""
     params = {"url": url}
-    with patch("src.tools.youtube_tool.YouTubeTranscriptApi.get_transcript", return_value=[]):
+
+    mock_transcript = MockFetchedTranscript(
+        video_id=video_id,
+        language_code="en",
+        snippets=[]
+    )
+    mock_api_instance = MagicMock()
+    mock_api_instance.fetch.return_value = mock_transcript
+
+    with patch("src.tools.youtube_tool.YouTubeTranscriptApi", return_value=mock_api_instance):
         result = await youtube_tool.handler(params, mock_context)
         assert result.video_id == video_id
 
@@ -93,10 +127,13 @@ async def test_handler_api_errors(youtube_tool, mock_context, api_exception, exp
     url = "https://www.youtube.com/watch?v=some_video"
     params = {"url": url}
 
-    with patch("src.tools.youtube_tool.YouTubeTranscriptApi.get_transcript", side_effect=api_exception):
+    mock_api_instance = MagicMock()
+    mock_api_instance.fetch.side_effect = api_exception
+
+    with patch("src.tools.youtube_tool.YouTubeTranscriptApi", return_value=mock_api_instance):
         with pytest.raises(MCPError) as excinfo:
             await youtube_tool.handler(params, mock_context)
-        
+
         assert excinfo.value.code == expected_error_code
         assert expected_error_message in excinfo.value.message
 
@@ -107,9 +144,12 @@ async def test_handler_unexpected_error(youtube_tool, mock_context):
     url = "https://www.youtube.com/watch?v=some_video"
     params = {"url": url}
 
-    with patch("src.tools.youtube_tool.YouTubeTranscriptApi.get_transcript", side_effect=Exception("Unexpected error")):
+    mock_api_instance = MagicMock()
+    mock_api_instance.fetch.side_effect = Exception("Unexpected error")
+
+    with patch("src.tools.youtube_tool.YouTubeTranscriptApi", return_value=mock_api_instance):
         with pytest.raises(MCPError) as excinfo:
             await youtube_tool.handler(params, mock_context)
-        
+
         assert excinfo.value.code == ErrorCode.TOOL_EXECUTION_ERROR
         assert "An unexpected error occurred" in excinfo.value.message

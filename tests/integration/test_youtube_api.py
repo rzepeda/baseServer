@@ -1,24 +1,22 @@
+from typing import Any, Callable, Coroutine, Iterator
 import pytest
 from unittest.mock import patch, MagicMock
+
+from fastapi import Request
 from fastapi.testclient import TestClient
-from starlette.middleware import Middleware
-from starlette.responses import JSONResponse
 from starlette import status
 
 from src.server import app
-# from src.middleware.oauth import oauth_middleware
-from src.models.mcp import ToolExecutionContext
-from src.models.errors import MCPError, ErrorCode
-
+from src.models.errors import ErrorCode
 
 # Integration Test Video URL - known to have transcripts
-INTEGRATION_TEST_VIDEO_URL = "https://www.youtube.com/watch?v=ILUsEN_Slf0"
+INTEGRATION_TEST_VIDEO_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # Rick Astley - Never Gonna Give You Up
 
 # Mock the oauth_middleware to allow requests to pass through
 @pytest.fixture(scope="module", autouse=True)
-def mock_oauth_middleware():
+def mock_oauth_middleware() -> Iterator[None]:
     """Mocks the OAuth middleware to allow all requests to pass through."""
-    async def mock_middleware(request, call_next):
+    async def mock_middleware(request: Request, call_next: Callable[[Request], Coroutine[Any, Any, Any]]) -> Any:
         # Optionally, you can set a dummy auth_context if needed by the tool
         request.state.auth_context = MagicMock()
         return await call_next(request)
@@ -29,14 +27,14 @@ def mock_oauth_middleware():
 
 
 @pytest.fixture(scope="module")
-def client():
+def client() -> Iterator[TestClient]:
     # The lifespan events (including tool registration) are handled by TestClient
     with TestClient(app) as c:
         yield c
 
 
 @pytest.mark.asyncio
-async def test_integration_youtube_transcript_retrieval(client):
+async def test_integration_youtube_transcript_retrieval(client: TestClient) -> None:
     """
     Integration test: full workflow from API call to actual transcript retrieval.
     Tests with a known YouTube video (INTEGRATION_TEST_VIDEO_URL) that has transcripts.
@@ -63,18 +61,17 @@ async def test_integration_youtube_transcript_retrieval(client):
     assert "result" in response_json
     result = response_json["result"]
 
-    assert result["video_id"] == "ILUsEN_Slf0"
+    assert result["video_id"] == "dQw4w9WgXcQ"
     assert "full_text" in result
     assert "segments" in result
     assert len(result["segments"]) > 0
 
     # Assert a known phrase from the transcript (for robust checking)
-    # This specific phrase is from the video's transcript.
-    assert "There are thousands of systems and devices" in result["full_text"]
+    assert "gonna give you up" in result["full_text"].lower()
 
 
 @pytest.mark.asyncio
-async def test_integration_invalid_youtube_url(client):
+async def test_integration_invalid_youtube_url(client: TestClient) -> None:
     """
     Integration test: ensure invalid YouTube URLs are handled correctly.
     """
@@ -91,12 +88,12 @@ async def test_integration_invalid_youtube_url(client):
 
 
 @pytest.mark.asyncio
-async def test_integration_video_without_transcript(client):
+async def test_integration_video_without_transcript(client: TestClient) -> None:
     """
     Integration test: ensure videos without transcripts are handled correctly.
-    This video is known to have no transcript (as of last check).
+    This video is known to have transcripts disabled.
     """
-    VIDEO_NO_TRANSCRIPT_URL = "https://www.youtube.com/watch?v=Fj-0q56P7G8" # Example video known to have no transcript
+    VIDEO_NO_TRANSCRIPT_URL = "https://www.youtube.com/watch?v=X2KSs7KwlGw" # Video with transcripts disabled
     payload = {
         "tool_name": "get_youtube_transcript",
         "parameters": {"url": VIDEO_NO_TRANSCRIPT_URL},
@@ -106,5 +103,5 @@ async def test_integration_video_without_transcript(client):
     assert response.status_code == status.HTTP_404_NOT_FOUND
     response_json = response.json()
     assert response_json["error_code"] == ErrorCode.TRANSCRIPT_NOT_AVAILABLE.value
-    assert "No transcript available for this video" in response_json["detail"]
+    assert "Transcripts are disabled for this video" in response_json["error"]
 
