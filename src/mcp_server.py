@@ -6,7 +6,6 @@ from mcp.server.fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from src.config import get_config
 from src.models.mcp import ToolExecutionContext
 from src.registry.tool_registry import ToolRegistrationError, ToolRegistry
 from src.tools.youtube_tool import YouTubeTool
