@@ -13,19 +13,8 @@ from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Initialize tool registry - use singleton for tool access
+# Use singleton tool registry (tools are registered in __main__.py)
 tool_registry = ToolRegistry()
-
-# Register YouTube tool at module load time (before FastMCP initialization)
-_tool_registered = False
-if not _tool_registered:
-    try:
-        tool_registry.register_tool(YouTubeTool())
-        _tool_registered = True
-        logger.info("youtube_tool_registered_for_mcp")
-    except ToolRegistrationError as e:
-        logger.info("tool_already_registered_skipping", error=str(e))
-        _tool_registered = True
 
 # Initialize FastMCP server
 # Use stateless HTTP mode for compatibility with Cloudflare tunnel

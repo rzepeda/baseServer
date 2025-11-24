@@ -1,0 +1,41 @@
+schema: 1
+story: "1.5"
+story_title: "MCP Protocol-Compliant Server Implementation"
+gate: "CONCERNS"
+status_reason: "Discrepancy found between task completion and dev notes regarding MCP integration tests (AC 15). Clarification or additional testing required."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-11-24T03:27:55Z"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "TEST-001"
+    severity: medium
+    finding: "Contradiction regarding creation of MCP integration tests (AC 15). Task 8 indicated completion, but 'Dev Agent Record' stated 'No new test files created (FastMCP integration tests deferred - SDK handles protocol internally)'."
+    suggested_action: "Clarify whether AC 15 is fully met, or implement dedicated integration tests as per AC 15. Expand integration tests for robustness, especially around error handling and connection stability, given Cloudflare Tunnel nuances."
+
+quality_score: 75
+expires: "2025-12-08T03:27:55Z"
+
+evidence:
+  tests_reviewed: 0 # Cannot verify as an AI
+  risks_identified: 1 # Discrepancy in testing
+  trace:
+    ac_covered: [] # Cannot verify as an AI
+    ac_gaps: [15] # AC 15 needs clarification
+
+nfr_validation:
+  security: { status: CONCERNS, notes: "OAuth authentication not implemented (known limitation for Epic 2)" }
+  performance: { status: PASS, notes: "No specific issues identified in documentation; assumed adequate" }
+  reliability: { status: CONCERNS, notes: "Integration tests for connection stability should be expanded" }
+  maintainability: { status: PASS, notes: "Code quality and documentation appear strong from description" }
+
+recommendations:
+  immediate:
+    - action: "Clarify AC 15 test coverage or implement dedicated MCP integration tests."
+      refs: ["src/mcp_server.py", "tests/integration/test_mcp_protocol.py"]
+  future:
+    - action: "Expand integration tests for error handling and connection stability for Cloudflare Tunnel compatibility."
+      refs: ["tests/integration/test_mcp_protocol.py"]
+    - action: "Ensure user-facing documentation explicitly mentions `stateless_http=True` implications for MCP endpoint."
+      refs: ["README.md", "CLAUDE_CONNECTION_GUIDE.md"]

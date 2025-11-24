@@ -35,16 +35,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         log_level=config.log_level,
     )
 
-    # Initialize tool registry
+    # Use singleton tool registry (tools are registered in __main__.py)
     registry = ToolRegistry()
-    try:
-        registry.register_tool(YouTubeTool())
-        logger.info("Registered YouTubeTool successfully.")
-    except ToolRegistrationError as e:
-        logger.error("Failed to register YouTubeTool", error=str(e))
-
     app.state.registry = registry
-    logger.info("Tool registry initialized", tool_count=len(registry.get_registered_tool_names()))
+    logger.info("Tool registry accessed", tool_count=len(registry.get_registered_tool_names()))
 
     yield
 
