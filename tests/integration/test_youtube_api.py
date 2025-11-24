@@ -1,22 +1,29 @@
-from typing import Any, Callable, Coroutine, Iterator
-import pytest
-from unittest.mock import patch, MagicMock
+from collections.abc import Callable, Coroutine, Iterator
+from typing import Any
+from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi import Request
 from fastapi.testclient import TestClient
 from starlette import status
 
-from src.server import app
 from src.models.errors import ErrorCode
+from src.server import app
 
 # Integration Test Video URL - known to have transcripts
-INTEGRATION_TEST_VIDEO_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # Rick Astley - Never Gonna Give You Up
+INTEGRATION_TEST_VIDEO_URL = (
+    "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Astley - Never Gonna Give You Up
+)
+
 
 # Mock the oauth_middleware to allow requests to pass through
 @pytest.fixture(scope="module", autouse=True)
 def mock_oauth_middleware() -> Iterator[None]:
     """Mocks the OAuth middleware to allow all requests to pass through."""
-    async def mock_middleware(request: Request, call_next: Callable[[Request], Coroutine[Any, Any, Any]]) -> Any:
+
+    async def mock_middleware(
+        request: Request, call_next: Callable[[Request], Coroutine[Any, Any, Any]]
+    ) -> Any:
         # Optionally, you can set a dummy auth_context if needed by the tool
         request.state.auth_context = MagicMock()
         return await call_next(request)
@@ -93,7 +100,9 @@ async def test_integration_video_without_transcript(client: TestClient) -> None:
     Integration test: ensure videos without transcripts are handled correctly.
     This video is known to have transcripts disabled.
     """
-    VIDEO_NO_TRANSCRIPT_URL = "https://www.youtube.com/watch?v=X2KSs7KwlGw" # Video with transcripts disabled
+    VIDEO_NO_TRANSCRIPT_URL = (
+        "https://www.youtube.com/watch?v=X2KSs7KwlGw"  # Video with transcripts disabled
+    )
     payload = {
         "tool_name": "get_youtube_transcript",
         "parameters": {"url": VIDEO_NO_TRANSCRIPT_URL},
@@ -104,4 +113,3 @@ async def test_integration_video_without_transcript(client: TestClient) -> None:
     response_json = response.json()
     assert response_json["error_code"] == ErrorCode.TRANSCRIPT_NOT_AVAILABLE.value
     assert "Transcripts are disabled for this video" in response_json["error"]
-

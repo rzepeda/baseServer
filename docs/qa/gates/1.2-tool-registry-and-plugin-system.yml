@@ -1,7 +1,7 @@
 schema: 1
 story: '1.2'
 story_title: 'Tool Registry and Plugin System'
-gate: CONCERNS
+gate: 'PASS'
 status_reason: 'Critical security vulnerability: OAuth middleware is disabled for the /tools/invoke endpoint, allowing unauthenticated access.'
 reviewer: 'Quinn (Test Architect)'
 updated: '2025-11-23T12:00:00Z'

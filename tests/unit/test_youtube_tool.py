@@ -1,17 +1,24 @@
-import pytest
-from unittest.mock import patch, MagicMock
 from dataclasses import dataclass
+from unittest.mock import MagicMock, patch
 
-from src.tools.youtube_tool import YouTubeTool
-from src.models.mcp import ToolExecutionContext
-from src.models.errors import MCPError, ErrorCode
-from youtube_transcript_api._errors import VideoUnavailable, NoTranscriptFound, InvalidVideoId, TranscriptsDisabled
+import pytest
 import requests
+from youtube_transcript_api._errors import (
+    InvalidVideoId,
+    NoTranscriptFound,
+    TranscriptsDisabled,
+    VideoUnavailable,
+)
+
+from src.models.errors import ErrorCode, MCPError
+from src.models.mcp import ToolExecutionContext
+from src.tools.youtube_tool import YouTubeTool
 
 
 @dataclass
 class MockSnippet:
     """Mock FetchedTranscriptSnippet for testing."""
+
     text: str
     start: float
     duration: float
@@ -20,6 +27,7 @@ class MockSnippet:
 @dataclass
 class MockFetchedTranscript:
     """Mock FetchedTranscript for testing."""
+
     video_id: str
     language_code: str
     snippets: list
@@ -37,6 +45,7 @@ def mock_context():
     context.logger = MagicMock()
     return context
 
+
 @pytest.mark.asyncio
 async def test_handler_success(youtube_tool, mock_context):
     """Test successful transcript retrieval."""
@@ -48,9 +57,7 @@ async def test_handler_success(youtube_tool, mock_context):
         MockSnippet(text="This is a test", start=3.0, duration=2.5),
     ]
     mock_transcript = MockFetchedTranscript(
-        video_id="ILUsEN_Slf0",
-        language_code="en",
-        snippets=mock_snippets
+        video_id="ILUsEN_Slf0", language_code="en", snippets=mock_snippets
     )
 
     mock_api_instance = MagicMock()
@@ -64,24 +71,25 @@ async def test_handler_success(youtube_tool, mock_context):
         assert result.full_text == "Hello world This is a test"
         assert len(result.segments) == 2
         assert result.segments[0].text == "Hello world"
-        mock_context.logger.info.assert_any_call("youtube_tool.transcript_retrieved", video_id="ILUsEN_Slf0")
+        mock_context.logger.info.assert_any_call(
+            "youtube_tool.transcript_retrieved", video_id="ILUsEN_Slf0"
+        )
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("url, video_id", [
-    ("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "dQw4w9WgXcQ"),
-    ("https://youtu.be/dQw4w9WgXcQ", "dQw4w9WgXcQ"),
-    ("https://m.youtube.com/watch?v=dQw4w9WgXcQ", "dQw4w9WgXcQ"),
-])
+@pytest.mark.parametrize(
+    "url, video_id",
+    [
+        ("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+        ("https://youtu.be/dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+        ("https://m.youtube.com/watch?v=dQw4w9WgXcQ", "dQw4w9WgXcQ"),
+    ],
+)
 async def test_valid_url_formats(youtube_tool, mock_context, url, video_id):
     """Test various valid YouTube URL formats."""
     params = {"url": url}
 
-    mock_transcript = MockFetchedTranscript(
-        video_id=video_id,
-        language_code="en",
-        snippets=[]
-    )
+    mock_transcript = MockFetchedTranscript(video_id=video_id, language_code="en", snippets=[])
     mock_api_instance = MagicMock()
     mock_api_instance.fetch.return_value = mock_transcript
 
@@ -89,17 +97,21 @@ async def test_valid_url_formats(youtube_tool, mock_context, url, video_id):
         result = await youtube_tool.handler(params, mock_context)
         assert result.video_id == video_id
 
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("url, error_message", [
-    ("https://www.google.com", "Invalid YouTube URL provided"),
-    ("https://www.youtube.com/invalid_path", "Could not extract video ID"),
-])
+@pytest.mark.parametrize(
+    "url, error_message",
+    [
+        ("https://www.google.com", "Invalid YouTube URL provided"),
+        ("https://www.youtube.com/invalid_path", "Could not extract video ID"),
+    ],
+)
 async def test_invalid_url_formats(youtube_tool, mock_context, url, error_message):
     """Test various invalid YouTube URL formats."""
     params = {"url": url}
     with pytest.raises(MCPError) as excinfo:
         await youtube_tool.handler(params, mock_context)
-    
+
     assert excinfo.value.code == ErrorCode.INVALID_URL
     assert error_message in excinfo.value.message
 
@@ -110,20 +122,41 @@ async def test_handler_no_url(youtube_tool, mock_context):
     params = {}
     with pytest.raises(MCPError) as excinfo:
         await youtube_tool.handler(params, mock_context)
-    
+
     assert excinfo.value.code == ErrorCode.INVALID_URL
     assert "URL parameter is required" in excinfo.value.message
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("api_exception, expected_error_code, expected_error_message", [
-    (InvalidVideoId("some_video"), ErrorCode.INVALID_URL, "Invalid YouTube video ID"),
-    (VideoUnavailable("some_video"), ErrorCode.YOUTUBE_API_ERROR, "YouTube video not found or unavailable"),
-    (NoTranscriptFound("some_video", requested_language_codes=[], transcript_data=[]), ErrorCode.TRANSCRIPT_NOT_AVAILABLE, "No transcript available for this video"),
-    (requests.exceptions.RequestException("Network issue"), ErrorCode.YOUTUBE_API_ERROR, "Network error while contacting YouTube"),
-    (TranscriptsDisabled("some_video"), ErrorCode.TRANSCRIPT_NOT_AVAILABLE, "Transcripts are disabled for this video."),
-])
-async def test_handler_api_errors(youtube_tool, mock_context, api_exception, expected_error_code, expected_error_message):
+@pytest.mark.parametrize(
+    "api_exception, expected_error_code, expected_error_message",
+    [
+        (InvalidVideoId("some_video"), ErrorCode.INVALID_URL, "Invalid YouTube video ID"),
+        (
+            VideoUnavailable("some_video"),
+            ErrorCode.YOUTUBE_API_ERROR,
+            "YouTube video not found or unavailable",
+        ),
+        (
+            NoTranscriptFound("some_video", requested_language_codes=[], transcript_data=[]),
+            ErrorCode.TRANSCRIPT_NOT_AVAILABLE,
+            "No transcript available for this video",
+        ),
+        (
+            requests.exceptions.RequestException("Network issue"),
+            ErrorCode.YOUTUBE_API_ERROR,
+            "Network error while contacting YouTube",
+        ),
+        (
+            TranscriptsDisabled("some_video"),
+            ErrorCode.TRANSCRIPT_NOT_AVAILABLE,
+            "Transcripts are disabled for this video.",
+        ),
+    ],
+)
+async def test_handler_api_errors(
+    youtube_tool, mock_context, api_exception, expected_error_code, expected_error_message
+):
     """Test various errors from the YouTube Transcript API."""
     url = "https://www.youtube.com/watch?v=some_video"
     params = {"url": url}

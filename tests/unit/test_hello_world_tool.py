@@ -1,8 +1,7 @@
 import pytest
-from typing import Any, Dict
 
-from src.tools.hello_world_tool import HelloWorldTool
 from src.models.mcp import ToolExecutionContext
+from src.tools.hello_world_tool import HelloWorldTool
 
 
 @pytest.mark.asyncio
@@ -10,15 +9,13 @@ async def test_hello_world_tool_handler():
     """Test that HelloWorldTool handler returns 'hello world'."""
     # Arrange
     tool = HelloWorldTool()
-    
+
     # Create a mock execution context
     from unittest.mock import Mock
+
     mock_logger = Mock()
     mock_context = ToolExecutionContext(
-        correlation_id="test-corr-id",
-        logger=mock_logger,
-        auth_context=None,
-        start_time=123.45
+        correlation_id="test-corr-id", logger=mock_logger, auth_context=None, start_time=123.45
     )
 
     # Act

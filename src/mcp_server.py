@@ -1,0 +1,109 @@
+"""MCP Protocol-compliant server using Anthropic's MCP SDK."""
+
+from uuid import uuid4
+
+from mcp.server.fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
+from src.config import get_config
+from src.models.mcp import ToolExecutionContext
+from src.registry.tool_registry import ToolRegistrationError, ToolRegistry
+from src.tools.youtube_tool import YouTubeTool
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+# Initialize tool registry - use singleton for tool access
+tool_registry = ToolRegistry()
+
+# Register YouTube tool at module load time (before FastMCP initialization)
+_tool_registered = False
+if not _tool_registered:
+    try:
+        tool_registry.register_tool(YouTubeTool())
+        _tool_registered = True
+        logger.info("youtube_tool_registered_for_mcp")
+    except ToolRegistrationError as e:
+        logger.info("tool_already_registered_skipping", error=str(e))
+        _tool_registered = True
+
+# Initialize FastMCP server
+# Use stateless HTTP mode for compatibility with Cloudflare tunnel
+# Cloudflare's free tunnel doesn't support SSE streaming properly
+mcp = FastMCP(
+    "youtube-transcript-server",
+    stateless_http=True,  # Allow stateless HTTP requests (no SSE required)
+)
+
+
+# Register tool with MCP using decorator
+@mcp.tool()
+async def get_youtube_transcript(url: str) -> str:
+    """
+    Fetches the transcript for a given YouTube video URL.
+
+    Supports standard (youtube.com), short (youtu.be), and mobile (m.youtube.com) URLs.
+
+    Args:
+        url: The full YouTube video URL
+
+    Returns:
+        The full transcript text of the video
+    """
+    # Get the YouTubeTool instance from registry
+    tool_instance = tool_registry.get_tool("get_youtube_transcript")
+    if not tool_instance:
+        logger.error("youtube_tool_not_found_in_registry")
+        return "Error: YouTube transcript tool not found in registry."
+
+    try:
+        # Create execution context with correlation ID
+        correlation_id = str(uuid4())
+        bound_logger = logger.bind(correlation_id=correlation_id)
+        tool_context = ToolExecutionContext(
+            correlation_id=correlation_id,
+            logger=bound_logger,
+            auth_context=None,  # No auth in this story (Epic 2)
+        )
+
+        # Execute the tool handler
+        result = await tool_instance.handler({"url": url}, tool_context)
+
+        # Extract full_text from YouTubeTranscript result
+        if hasattr(result, "full_text"):
+            return str(result.full_text)
+        else:
+            return str(result)
+
+    except Exception as e:
+        logger.error(
+            "mcp_tool_execution_error",
+            tool_name="get_youtube_transcript",
+            error=str(e),
+            exc_info=True,
+        )
+        return f"Error executing tool: {type(e).__name__} - {str(e)}"
+
+
+# Add custom health endpoint using FastMCP's custom_route
+@mcp.custom_route("/health", methods=["GET"])
+async def health_endpoint(request: Request) -> JSONResponse:
+    """Health check endpoint for MCP server."""
+    from datetime import UTC, datetime
+
+    response_data = {
+        "status": "healthy",
+        "version": "0.1.0",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "tools_loaded": len(tool_registry.get_registered_tool_names()),
+        "registered_tools": tool_registry.get_registered_tool_names(),
+    }
+
+    return JSONResponse(content=response_data)
+
+
+# Export the ASGI application from FastMCP
+# In stateless mode, use streamable_http_app (works with Cloudflare tunnel)
+# MCP messages endpoint will be at /messages/
+app = mcp.streamable_http_app()

@@ -1,0 +1,31 @@
+# Cloudflare Tunnel Configuration Example
+#
+# This is a template for configuring a named Cloudflare Tunnel for the MCP server.
+# Copy this file to `cloudflare-tunnel.yml` and replace the placeholders with your actual values.
+#
+# IMPORTANT: Never commit `cloudflare-tunnel.yml` to version control as it contains
+# your tunnel UUID and credentials path.
+
+# Your tunnel UUID (obtained from `cloudflared tunnel create <tunnel-name>`)
+tunnel: <your-tunnel-uuid>
+
+# Path to your tunnel credentials file (typically in ~/.cloudflared/)
+credentials-file: /home/<your-username>/.cloudflared/<your-tunnel-uuid>.json
+
+# Ingress rules define how traffic is routed to your local services
+ingress:
+  # Route traffic from your public hostname to the local MCP server
+  - hostname: mcp.yourdomain.com
+    service: http://localhost:8080
+
+  # Catch-all rule (required) - returns 404 for unmatched hostnames
+  - service: http_status:404
+
+# Optional: Enable logging for debugging
+# loglevel: debug
+
+# Optional: Configure HTTP settings
+# originRequest:
+#   noTLSVerify: false  # Set to true only for development with self-signed certs
+#   connectTimeout: 30s
+#   tcpKeepAlive: 30s

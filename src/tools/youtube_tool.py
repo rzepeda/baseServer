@@ -6,8 +6,13 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 from pydantic import ValidationError
-from youtube_transcript_api import YouTubeTranscriptApi  # type: ignore
-from youtube_transcript_api._errors import InvalidVideoId, NoTranscriptFound, TranscriptsDisabled, VideoUnavailable  # type: ignore
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import (
+    InvalidVideoId,
+    NoTranscriptFound,
+    TranscriptsDisabled,
+    VideoUnavailable,
+)
 
 from src.models.errors import ErrorCode, MCPError
 from src.models.mcp import ToolExecutionContext
@@ -52,7 +57,9 @@ class YouTubeTool(BaseMCPTool):
                 return parse_qs(parsed_url.query).get("v", [None])[0]
         return None
 
-    async def handler(self, params: dict[str, Any], context: ToolExecutionContext) -> YouTubeTranscript:
+    async def handler(
+        self, params: dict[str, Any], context: ToolExecutionContext
+    ) -> YouTubeTranscript:
         url = params.get("url")
         if not url:
             raise MCPError(ErrorCode.INVALID_URL, "URL parameter is required.")
@@ -73,9 +80,7 @@ class YouTubeTool(BaseMCPTool):
             # Extract snippets from FetchedTranscript object
             segments = [
                 YouTubeTranscriptSegment(
-                    text=snippet.text,
-                    start=snippet.start,
-                    duration=snippet.duration
+                    text=snippet.text, start=snippet.start, duration=snippet.duration
                 )
                 for snippet in fetched_transcript.snippets
             ]
@@ -85,7 +90,7 @@ class YouTubeTool(BaseMCPTool):
                 video_id=fetched_transcript.video_id,
                 segments=segments,
                 full_text=full_text,
-                language=fetched_transcript.language_code
+                language=fetched_transcript.language_code,
             )
 
             context.logger.info("youtube_tool.transcript_retrieved", video_id=video_id)
@@ -99,16 +104,33 @@ class YouTubeTool(BaseMCPTool):
             raise MCPError(ErrorCode.INVALID_URL, f"Invalid YouTube video ID: {video_id}") from e
         except VideoUnavailable as e:
             context.logger.warn("youtube_tool.video_unavailable", video_id=video_id, error=str(e))
-            raise MCPError(ErrorCode.YOUTUBE_API_ERROR, "YouTube video not found or unavailable.") from e
+            raise MCPError(
+                ErrorCode.YOUTUBE_API_ERROR, "YouTube video not found or unavailable."
+            ) from e
         except NoTranscriptFound as e:
             context.logger.info("youtube_tool.no_transcript_found", video_id=video_id, error=str(e))
-            raise MCPError(ErrorCode.TRANSCRIPT_NOT_AVAILABLE, "No transcript available for this video.") from e
-        except TranscriptsDisabled as e: # Explicitly handle TranscriptsDisabled
-            context.logger.info("youtube_tool.transcripts_disabled", video_id=video_id, error=str(e))
-            raise MCPError(ErrorCode.TRANSCRIPT_NOT_AVAILABLE, "Transcripts are disabled for this video.") from e
+            raise MCPError(
+                ErrorCode.TRANSCRIPT_NOT_AVAILABLE, "No transcript available for this video."
+            ) from e
+        except TranscriptsDisabled as e:  # Explicitly handle TranscriptsDisabled
+            context.logger.info(
+                "youtube_tool.transcripts_disabled", video_id=video_id, error=str(e)
+            )
+            raise MCPError(
+                ErrorCode.TRANSCRIPT_NOT_AVAILABLE, "Transcripts are disabled for this video."
+            ) from e
         except requests.exceptions.RequestException as e:
             context.logger.error("youtube_tool.network_error", video_id=video_id, error=str(e))
-            raise MCPError(ErrorCode.YOUTUBE_API_ERROR, "Network error while contacting YouTube.") from e
+            raise MCPError(
+                ErrorCode.YOUTUBE_API_ERROR, "Network error while contacting YouTube."
+            ) from e
         except Exception as e:
-            context.logger.error("youtube_tool.unknown_error", video_id=video_id if 'video_id' in locals() else "unknown", error=str(e))
-            raise MCPError(ErrorCode.TOOL_EXECUTION_ERROR, "An unexpected error occurred while fetching the transcript.") from e
+            context.logger.error(
+                "youtube_tool.unknown_error",
+                video_id=video_id if "video_id" in locals() else "unknown",
+                error=str(e),
+            )
+            raise MCPError(
+                ErrorCode.TOOL_EXECUTION_ERROR,
+                "An unexpected error occurred while fetching the transcript.",
+            ) from e

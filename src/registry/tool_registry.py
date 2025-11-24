@@ -1,13 +1,15 @@
-from typing import Dict, Optional, List, Any, Callable, Awaitable
 from inspect import iscoroutinefunction
-from jsonschema import validate, ValidationError
+from typing import Any, Optional
 
+from jsonschema import ValidationError, validate
+
+from src.models.mcp import MCPToolDefinition  # Import MCPToolDefinition
 from src.tools.base import BaseMCPTool
-from src.models.mcp import MCPToolDefinition # Import MCPToolDefinition
 
 
 class ToolRegistrationError(Exception):
     """Custom exception for tool registration errors."""
+
     pass
 
 
@@ -16,12 +18,13 @@ class ToolRegistry:
     Manages the registration and retrieval of MCP tools.
     Implemented as a singleton to ensure a single, consistent registry throughout the application.
     """
-    _instance: Optional['ToolRegistry'] = None
-    _registered_tools: Dict[str, BaseMCPTool] = {}
 
-    def __new__(cls) -> 'ToolRegistry':
+    _instance: Optional["ToolRegistry"] = None
+    _registered_tools: dict[str, BaseMCPTool] = {}
+
+    def __new__(cls) -> "ToolRegistry":
         if cls._instance is None:
-            cls._instance = super(ToolRegistry, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             # Initialize _registered_tools only once when the first instance is created
             cls._registered_tools = {}
         return cls._instance
@@ -46,16 +49,22 @@ class ToolRegistry:
     def _validate_tool_instance(self, tool: Any) -> None:
         """Checks if the provided object is an instance of BaseMCPTool."""
         if not isinstance(tool, BaseMCPTool):
-            raise ToolRegistrationError(f"Provided object is not an instance of BaseMCPTool: {type(tool)}")
+            raise ToolRegistrationError(
+                f"Provided object is not an instance of BaseMCPTool: {type(tool)}"
+            )
 
     def _validate_tool_properties(self, tool: BaseMCPTool) -> None:
         """Validates that the tool has all required and correctly typed properties."""
         if not tool.name or not isinstance(tool.name, str):
             raise ToolRegistrationError("Tool must have a non-empty string 'name'.")
         if not tool.description or not isinstance(tool.description, str):
-            raise ToolRegistrationError(f"Tool '{tool.name}' must have a non-empty string 'description'.")
+            raise ToolRegistrationError(
+                f"Tool '{tool.name}' must have a non-empty string 'description'."
+            )
         if not isinstance(tool.input_schema, dict):
-            raise ToolRegistrationError(f"Tool '{tool.name}' must have a 'input_schema' of type dict.")
+            raise ToolRegistrationError(
+                f"Tool '{tool.name}' must have a 'input_schema' of type dict."
+            )
         if not (callable(tool.handler) and iscoroutinefunction(tool.handler)):
             raise ToolRegistrationError(f"Tool '{tool.name}' must have an async 'handler' method.")
 
@@ -73,14 +82,20 @@ class ToolRegistry:
             dummy_instance = {}
             if "required" in tool.input_schema and len(tool.input_schema["required"]) > 0:
                 for prop in tool.input_schema["required"]:
-                    dummy_instance[prop] = "dummy_value" # Provide a dummy value for required fields
+                    dummy_instance[prop] = (
+                        "dummy_value"  # Provide a dummy value for required fields
+                    )
             validate(instance=dummy_instance, schema=tool.input_schema)
         except ValidationError as e:
-            raise ToolRegistrationError(f"Tool '{tool.name}' has an invalid 'input_schema': {e.message}")
+            raise ToolRegistrationError(
+                f"Tool '{tool.name}' has an invalid 'input_schema': {e.message}"
+            ) from e
         except Exception as e:
-            raise ToolRegistrationError(f"Tool '{tool.name}' has an invalid 'input_schema': {e}")
+            raise ToolRegistrationError(
+                f"Tool '{tool.name}' has an invalid 'input_schema': {e}"
+            ) from e
 
-    def get_tool(self, tool_name: str) -> Optional[BaseMCPTool]:
+    def get_tool(self, tool_name: str) -> BaseMCPTool | None:
         """
         Retrieves a registered tool by its name.
 
@@ -92,7 +107,7 @@ class ToolRegistry:
         """
         return self._registered_tools.get(tool_name)
 
-    def get_registered_tool_names(self) -> List[str]:
+    def get_registered_tool_names(self) -> list[str]:
         """
         Returns a list of names of all currently registered tools.
 
@@ -101,7 +116,7 @@ class ToolRegistry:
         """
         return list(self._registered_tools.keys())
 
-    def generate_mcp_schema(self) -> List[MCPToolDefinition]:
+    def generate_mcp_schema(self) -> list[MCPToolDefinition]:
         """
         Generates a list of MCPToolDefinition objects for all registered tools.
         This is used to expose the available tools and their schemas to the MCP client.
@@ -109,14 +124,14 @@ class ToolRegistry:
         Returns:
             A list of MCPToolDefinition objects.
         """
-        mcp_schema: List[MCPToolDefinition] = []
+        mcp_schema: list[MCPToolDefinition] = []
         for tool in self._registered_tools.values():
             mcp_schema.append(
                 MCPToolDefinition(
                     name=tool.name,
                     description=tool.description,
                     input_schema=tool.input_schema,
-                    version="1.0" # Assuming default version 1.0 for now
+                    version="1.0",  # Assuming default version 1.0 for now
                 )
             )
         return mcp_schema

@@ -25,7 +25,11 @@ def configure_logging(log_level: str = "INFO") -> None:
         processors=[
             structlog.stdlib.add_logger_name,
             structlog.stdlib.add_log_level,
-            structlog.dev.ConsoleRenderer() if log_level == "DEBUG" else structlog.processors.JSONRenderer(),
+            (
+                structlog.dev.ConsoleRenderer()
+                if log_level == "DEBUG"
+                else structlog.processors.JSONRenderer()
+            ),
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
@@ -35,18 +39,20 @@ def configure_logging(log_level: str = "INFO") -> None:
     # Configure the standard library formatter to use structlog processors
     # This captures logs from the standard logging library and formats them
     formatter = structlog.stdlib.ProcessorFormatter(
-        processor=structlog.dev.ConsoleRenderer() if log_level == "DEBUG" else structlog.processors.JSONRenderer(),
-        foreign_pre_chain=[
-            structlog.contextvars.merge_contextvars
-        ],
-        fmt="%(message)s"
+        processor=(
+            structlog.dev.ConsoleRenderer()
+            if log_level == "DEBUG"
+            else structlog.processors.JSONRenderer()
+        ),
+        foreign_pre_chain=[structlog.contextvars.merge_contextvars],
+        fmt="%(message)s",
     )
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()
-    root_logger.handlers.clear() # Clear existing handlers
+    root_logger.handlers.clear()  # Clear existing handlers
     root_logger.addHandler(handler)
     root_logger.setLevel(log_level)
 

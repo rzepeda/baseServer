@@ -1,6 +1,5 @@
 """YouTube-specific data models."""
 
-
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -14,10 +13,7 @@ class YouTubeURL(BaseModel):
     @classmethod
     def validate_youtube_url(cls, v: str) -> str:
         """Validate that the URL is a valid YouTube URL."""
-        if not any(
-            domain in v.lower()
-            for domain in ["youtube.com", "youtu.be", "m.youtube.com"]
-        ):
+        if not any(domain in v.lower() for domain in ["youtube.com", "youtu.be", "m.youtube.com"]):
             raise ValueError("Invalid YouTube URL")
         return v
 
@@ -34,8 +30,6 @@ class YouTubeTranscript(BaseModel):
     """Complete YouTube transcript."""
 
     video_id: str = Field(..., description="YouTube video ID")
-    segments: list[YouTubeTranscriptSegment] = Field(
-        ..., description="Transcript segments"
-    )
+    segments: list[YouTubeTranscriptSegment] = Field(..., description="Transcript segments")
     full_text: str = Field(..., description="Full transcript as single string")
     language: str = Field(default="en", description="Transcript language code")

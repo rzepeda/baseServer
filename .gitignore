@@ -73,6 +73,10 @@ venv.bak/
 k8s/**/secret.yaml
 !k8s/**/secret.yaml.example
 
+# Cloudflare Tunnel configuration (contains tunnel UUID and credentials path)
+cloudflare-tunnel.yml
+!cloudflare-tunnel.yml.example
+
 # Logs
 *.log
 logs/

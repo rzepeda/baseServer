@@ -19,16 +19,21 @@ class Config(BaseSettings):
 
     # Server Configuration
     server_host: str = Field(default="0.0.0.0", description="Server bind address")
-    server_port: int = Field(default=8080, description="Server port", ge=1, le=65535)
+    mcp_port: int = Field(default=8080, description="MCP Server port", ge=1, le=65535)
+    rest_api_port: int = Field(default=8081, description="REST API Server port", ge=1, le=65535)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
         default="INFO", description="Logging level"
     )
     environment: str = Field(default="development", description="Environment name")
 
-    # OAuth Configuration
-    oauth_issuer_url: str = Field(
-        ..., description="OAuth issuer URL for token validation"
+    # Cloudflare Tunnel Configuration
+    cloudflare_tunnel_url: str = Field(
+        default="https://your-tunnel-subdomain.trycloudflare.com",
+        description="Cloudflare Tunnel URL for external access to the MCP server",
     )
+
+    # OAuth Configuration
+    oauth_issuer_url: str = Field(..., description="OAuth issuer URL for token validation")
     oauth_audience: str = Field(..., description="Expected OAuth audience")
     oauth_token_cache_ttl: int = Field(
         default=60, description="OAuth token cache TTL in seconds", ge=0

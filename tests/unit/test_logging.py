@@ -23,9 +23,7 @@ def reset_logging():
     # Restore original state
     logging.root.manager.loggerDict = original_logging_config
     logging.root.handlers.clear()
-    structlog.configure(
-        **original_structlog_config
-    )
+    structlog.configure(**original_structlog_config)
 
 
 def test_configure_logging_info_level():
@@ -70,4 +68,3 @@ def test_get_logger_returns_logger():
     logger = get_logger("test_logger")
     # Check if it's a structlog bound logger (resolved from proxy)
     assert isinstance(logger.bind(), structlog.stdlib.BoundLogger)
-

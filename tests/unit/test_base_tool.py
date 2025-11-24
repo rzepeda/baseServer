@@ -1,9 +1,9 @@
-import pytest
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Awaitable
+from typing import Any
 
+import pytest
+
+from src.models.mcp import ToolExecutionContext  # Assuming ToolExecutionContext is defined here
 from src.tools.base import BaseMCPTool
-from src.models.mcp import ToolExecutionContext # Assuming ToolExecutionContext is defined here
 
 
 # Helper class for testing concrete implementation
@@ -17,11 +17,12 @@ class ConcreteTool(BaseMCPTool):
         return "A concrete implementation for testing."
 
     @property
-    def input_schema(self) -> Dict[str, Any]:
+    def input_schema(self) -> dict[str, Any]:
         return {"type": "object", "properties": {}}
 
-    async def handler(self, params: Dict[str, Any], context: ToolExecutionContext) -> Any:
+    async def handler(self, params: dict[str, Any], context: ToolExecutionContext) -> Any:
         return "handled"
+
 
 # Helper class for testing partial implementation
 class PartialTool(BaseMCPTool):
@@ -35,18 +36,19 @@ class PartialTool(BaseMCPTool):
 
     # Missing input_schema and handler
 
+
 @pytest.fixture
 def mock_tool_execution_context() -> ToolExecutionContext:
     """Fixture for a mock ToolExecutionContext."""
+
     import structlog
-    from unittest.mock import Mock
 
     # Configure a basic structlog logger for testing
     structlog.configure(
         processors=[
             structlog.stdlib.add_logger_name,
             structlog.stdlib.add_log_level,
-            structlog.dev.ConsoleRenderer()
+            structlog.dev.ConsoleRenderer(),
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
@@ -58,8 +60,12 @@ def mock_tool_execution_context() -> ToolExecutionContext:
 
 def test_base_mcp_tool_cannot_be_instantiated_directly():
     """Verify that BaseMCPTool cannot be instantiated directly."""
-    with pytest.raises(TypeError, match="Can't instantiate abstract class BaseMCPTool without an implementation for abstract methods 'description', 'handler', 'input_schema', 'name'"):
+    with pytest.raises(
+        TypeError,
+        match="Can't instantiate abstract class BaseMCPTool without an implementation for abstract methods 'description', 'handler', 'input_schema', 'name'",
+    ):
         BaseMCPTool()
+
 
 def test_concrete_tool_implementation(mock_tool_execution_context):
     """Verify a complete concrete implementation can be instantiated and its methods work."""
@@ -67,19 +73,26 @@ def test_concrete_tool_implementation(mock_tool_execution_context):
     assert tool.name == "concrete_tool"
     assert tool.description == "A concrete implementation for testing."
     assert tool.input_schema == {"type": "object", "properties": {}}
-    
+
     # Test handler method (async)
     import asyncio
+
     result = asyncio.run(tool.handler({}, mock_tool_execution_context))
     assert result == "handled"
 
+
 def test_partial_tool_cannot_be_instantiated():
     """Verify that a partial implementation still raises TypeError."""
-    with pytest.raises(TypeError, match="Can't instantiate abstract class PartialTool without an implementation for abstract methods 'handler', 'input_schema'"):
+    with pytest.raises(
+        TypeError,
+        match="Can't instantiate abstract class PartialTool without an implementation for abstract methods 'handler', 'input_schema'",
+    ):
         PartialTool()
+
 
 def test_base_mcp_tool_abstract_properties():
     """Verify that accessing abstract properties directly on BaseMCPTool raises NotImplementedError."""
+
     # We can't instantiate BaseMCPTool, so we test by creating an incomplete subclass
     class IncompleteTool(BaseMCPTool):
         # Missing all abstract methods/properties

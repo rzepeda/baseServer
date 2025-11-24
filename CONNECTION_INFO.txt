@@ -1,0 +1,43 @@
+====================================
+CLAUDE.AI CONNECTION INFORMATION
+====================================
+
+MCP Server URL (copy this exactly):
+https://thermal-lang-jewish-excitement.trycloudflare.com/mcp
+
+Server Type: Remote MCP Server
+Authentication: None
+Protocol: MCP over Streamable HTTP
+
+====================================
+TESTING COMMANDS
+====================================
+
+# 1. Test health endpoint (should return JSON):
+curl https://thermal-lang-jewish-excitement.trycloudflare.com/health
+
+# 2. Test MCP tools/list (should return tool list):
+curl -X POST "https://thermal-lang-jewish-excitement.trycloudflare.com/mcp" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+
+====================================
+TROUBLESHOOTING
+====================================
+
+If Claude.ai shows "server not responding" or "connection error":
+
+1. The Cloudflare tunnel URL may have changed. Check:
+   - Run 'cloudflared tunnel info' to get current URL
+   - Update .env with new CLOUDFLARE_TUNNEL_URL
+
+2. Server may need restart:
+   - pkill -f "python -m src"
+   - source .venv/bin/activate && python -m src > server.log 2>&1 &
+
+3. Check server is listening:
+   - ps aux | grep "python -m src"
+   - curl http://localhost:8080/health
+
+====================================

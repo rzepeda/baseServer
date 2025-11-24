@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Awaitable
+from typing import Any
 
 from src.models.mcp import ToolExecutionContext
 
@@ -26,7 +26,7 @@ class BaseMCPTool(ABC):
 
     @property
     @abstractmethod
-    def input_schema(self) -> Dict[str, Any]:
+    def input_schema(self) -> dict[str, Any]:
         """
         The JSON schema defining the expected input parameters for the tool's handler.
         This schema is used for validation and MCP manifest generation.
@@ -34,7 +34,7 @@ class BaseMCPTool(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def handler(self, params: Dict[str, Any], context: ToolExecutionContext) -> Any:
+    async def handler(self, params: dict[str, Any], context: ToolExecutionContext) -> Any:
         """
         The asynchronous handler function that executes the tool's logic.
 
