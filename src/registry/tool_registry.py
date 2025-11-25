@@ -142,3 +142,16 @@ class ToolRegistry:
         Primarily for testing purposes to reset the singleton state.
         """
         self._registered_tools.clear()
+
+
+def register_all_tools() -> None:
+    """
+    Registers all available tools with the ToolRegistry.
+    This function is designed to be called at application startup.
+    """
+    from src.tools.youtube_tool import YouTubeTool
+
+    registry = ToolRegistry()
+    # Check if the tool is already registered to avoid errors during re-import or in tests
+    if not registry.get_tool("get_youtube_transcript"):
+        registry.register_tool(YouTubeTool())

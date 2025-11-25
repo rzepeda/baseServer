@@ -1,28 +1,18 @@
 """Test parameter validation in server.py."""
 
-from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 from starlette import status
 
-from src.server import app
+from src.__main__ import rest_api_app as app
 
-
-@pytest.fixture(scope="module", autouse=True)
-def mock_oauth_middleware():
-    """Mocks the OAuth middleware to allow all requests to pass through."""
-
-    async def mock_middleware(request, call_next):
-        request.state.auth_context = MagicMock()
-        return await call_next(request)
-
-    with patch("src.middleware.oauth.oauth_middleware", side_effect=mock_middleware):
-        yield
+pytestmark = pytest.mark.usefixtures("bypass_oauth_for_most_tests")
 
 
 @pytest.fixture(scope="module")
 def client():
+    """Test client with mocked OAuth middleware from session fixture."""
     with TestClient(app) as c:
         yield c
 

@@ -7,8 +7,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from src.models.mcp import ToolExecutionContext
-from src.registry.tool_registry import ToolRegistrationError, ToolRegistry
-from src.tools.youtube_tool import YouTubeTool
+from src.registry.tool_registry import ToolRegistry
+from src.utils.context import auth_context_var
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -25,7 +25,6 @@ mcp = FastMCP(
 )
 
 
-# Register tool with MCP using decorator
 @mcp.tool()
 async def get_youtube_transcript(url: str) -> str:
     """
@@ -49,10 +48,13 @@ async def get_youtube_transcript(url: str) -> str:
         # Create execution context with correlation ID
         correlation_id = str(uuid4())
         bound_logger = logger.bind(correlation_id=correlation_id)
+
+        # Get auth_context from context var
+        auth_context = auth_context_var.get()
+
+        auth_context_dict = auth_context.to_dict() if auth_context else None
         tool_context = ToolExecutionContext(
-            correlation_id=correlation_id,
-            logger=bound_logger,
-            auth_context=None,  # No auth in this story (Epic 2)
+            correlation_id=correlation_id, logger=bound_logger, auth_context=auth_context_dict
         )
 
         # Execute the tool handler
@@ -91,7 +93,10 @@ async def health_endpoint(request: Request) -> JSONResponse:
     return JSONResponse(content=response_data)
 
 
+from src.middleware.oauth import OAuthMiddleware  # noqa: E402
+
 # Export the ASGI application from FastMCP
 # In stateless mode, use streamable_http_app (works with Cloudflare tunnel)
 # MCP messages endpoint will be at /messages/
-app = mcp.streamable_http_app()
+# Apply OAuthMiddleware to protect endpoints, excluding /health
+app = OAuthMiddleware(mcp.streamable_http_app(), exclude_paths=["/health"])

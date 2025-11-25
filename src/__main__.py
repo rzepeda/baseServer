@@ -4,25 +4,22 @@ import asyncio
 
 import uvicorn
 
-from src.config import get_config
-from src.registry.tool_registry import ToolRegistry
-from src.tools.youtube_tool import YouTubeTool
+from src.config import Config, get_config
+from src.registry.tool_registry import ToolRegistry, register_all_tools
 from src.utils.logging import configure_logging, get_logger
 
 logger = get_logger(__name__)
 
-# CRITICAL: Initialize tool registry and register tools BEFORE importing server apps
-# This ensures a single registration point, avoiding duplicate registration errors
-_registry = ToolRegistry()
-_registry.register_tool(YouTubeTool())
-logger.info("youtube_tool_registered_in_main", tool_count=len(_registry.get_registered_tool_names()))
+# CRITICAL: Register all tools BEFORE importing server apps
+register_all_tools()
+logger.info("Tools registered in main.", tool_count=len(ToolRegistry().get_registered_tool_names()))
 
 # Now import server apps - they will use the already-populated singleton registry
-from src.mcp_server import app as mcp_app
-from src.server import app as rest_api_app
+from src.mcp_server import app as mcp_app  # noqa: E402
+from src.server import app as rest_api_app  # noqa: E402
 
 
-async def run_mcp_server(config) -> None:
+async def run_mcp_server(config: Config) -> None:
     """Run the MCP Protocol Server on port 8080."""
     mcp_config = uvicorn.Config(
         mcp_app,
@@ -35,7 +32,7 @@ async def run_mcp_server(config) -> None:
     await mcp_server.serve()
 
 
-async def run_rest_api_server(config) -> None:
+async def run_rest_api_server(config: Config) -> None:
     """Run the REST API Server on port 8081."""
     rest_api_config = uvicorn.Config(
         rest_api_app,

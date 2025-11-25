@@ -1,41 +1,25 @@
-from collections.abc import Callable, Coroutine, Iterator
-from typing import Any
-from unittest.mock import MagicMock, patch
+from collections.abc import Iterator
 
 import pytest
-from fastapi import Request
 from fastapi.testclient import TestClient
 from starlette import status
 
+from src.__main__ import rest_api_app as app
 from src.models.errors import ErrorCode
-from src.server import app
 
-# Integration Test Video URL - known to have transcripts
+pytestmark = pytest.mark.usefixtures("bypass_oauth_for_most_tests")
+
 INTEGRATION_TEST_VIDEO_URL = (
     "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # Rick Astley - Never Gonna Give You Up
 )
-
-
-# Mock the oauth_middleware to allow requests to pass through
-@pytest.fixture(scope="module", autouse=True)
-def mock_oauth_middleware() -> Iterator[None]:
-    """Mocks the OAuth middleware to allow all requests to pass through."""
-
-    async def mock_middleware(
-        request: Request, call_next: Callable[[Request], Coroutine[Any, Any, Any]]
-    ) -> Any:
-        # Optionally, you can set a dummy auth_context if needed by the tool
-        request.state.auth_context = MagicMock()
-        return await call_next(request)
-
-    # Patch the oauth_middleware function
-    with patch("src.middleware.oauth.oauth_middleware", side_effect=mock_middleware):
-        yield
+VIDEO_NO_TRANSCRIPT_URL = (
+    "https://www.youtube.com/watch?v=X2KSs7KwlGw"  # Video with transcripts disabled
+)
 
 
 @pytest.fixture(scope="module")
 def client() -> Iterator[TestClient]:
-    # The lifespan events (including tool registration) are handled by TestClient
+    """Test client with mocked OAuth middleware from session fixture."""
     with TestClient(app) as c:
         yield c
 

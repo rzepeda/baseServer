@@ -2,7 +2,7 @@
 """Test MCP protocol with proper SSE session management."""
 
 import asyncio
-import json
+
 import httpx
 
 
@@ -13,10 +13,14 @@ async def test_mcp_protocol():
     async with httpx.AsyncClient(timeout=30.0) as client:
         # Start SSE connection
         print("1. Connecting to SSE endpoint...")
-        async with client.stream("GET", f"{base_url}/sse", headers={
-            "Accept": "text/event-stream",
-            "Cache-Control": "no-cache",
-        }) as response:
+        async with client.stream(
+            "GET",
+            f"{base_url}/sse",
+            headers={
+                "Accept": "text/event-stream",
+                "Cache-Control": "no-cache",
+            },
+        ) as response:
             # Read the first event to get session ID
             session_id = None
             async for line in response.aiter_lines():
@@ -35,7 +39,7 @@ async def test_mcp_protocol():
             tools_response = await client.post(
                 f"{base_url}/messages/?session_id={session_id}",
                 json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}},
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json"},
             )
             print(f"tools/list HTTP response: {tools_response.text}")
 

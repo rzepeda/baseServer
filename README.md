@@ -69,6 +69,28 @@ Both servers share the same tool implementations (YouTube transcript tool) and t
     ```
     Update the `.env` file with your specific configuration, such as OAuth credentials.
 
+### OAuth 2.0 Authentication
+
+This server is protected by OAuth 2.0 bearer token authentication. Only authorized clients with valid tokens can access the tool endpoints.
+
+To configure OAuth, ensure the following environment variables are set in your `.env` file (copied from `.env.example`):
+
+-   `OAUTH_PROVIDER_URL`: The base URL of your OAuth provider (e.g., `https://your-oauth-provider.com`). This is used to construct the full validation endpoint URL if not explicitly provided.
+-   `OAUTH_CLIENT_ID`: Your client ID for the application registered with the OAuth provider.
+-   `OAUTH_CLIENT_SECRET`: **CRITICAL:** Your client secret. This is a sensitive credential and should **never** be committed to version control. In production, this should be managed via secure secrets management solutions (e.g., Kubernetes Secrets).
+-   `OAUTH_SCOPES`: A comma-separated list of required OAuth scopes (e.g., `read:transcripts`). The token must have at least these scopes to be considered valid.
+-   `OAUTH_VALIDATION_ENDPOINT`: The full URL to the OAuth provider's token validation or introspection endpoint (e.g., `https://your-oauth-provider.com/oauth2/v1/introspect`). The middleware will send the bearer token here for validation.
+-   `OAUTH_TOKEN_CACHE_TTL`: (Optional) Time-to-live in seconds for caching valid tokens. Defaults to 60 seconds. Set to `0` to disable caching.
+
+**Obtaining OAuth Credentials:**
+
+You will need to register this MCP server as a client application with your chosen OAuth 2.0 provider. Follow your provider's documentation to obtain a `Client ID` and `Client Secret`, and to understand their token validation endpoint.
+
+**Example Providers:**
+-   **Auth0:** Create a "Machine to Machine Application" or a "Native Application".
+-   **Keycloak:** Create a client in your realm.
+-   **Google Identity Platform:** Create OAuth 2.0 Client IDs.
+
 ## Running the Servers
 
 The project runs **both servers concurrently** using a single command:
@@ -139,12 +161,16 @@ CLOUDFLARE_TUNNEL_URL=https://thermal-lang-jewish-excitement.trycloudflare.com
 Fill in the following fields:
 
 - **Name:** `YouTube Transcript Server` (or any descriptive name)
-- **URL:** Your Cloudflare tunnel URL from Step 1
-  - Example: `https://calendar-computational-bring-ever.trycloudflare.com`
-  - **Note:** Use the full HTTPS URL without any path (no `/mcp` suffix needed)
-- **Authentication:** Leave blank for now (OAuth will be added in Epic 2)
+- **URL:** Your Cloudflare tunnel URL from Step 1 **WITH `/mcp` path**
+  - Example: `https://calendar-computational-bring-ever.trycloudflare.com/mcp`
+  - **CRITICAL:** Must include the `/mcp` path - Claude.ai does not add it automatically
+- **Authentication:** Select **"OAuth 2.0"**
+  - **Client ID:** Enter the `OAUTH_CLIENT_ID` configured for Claude.ai with your OAuth provider.
+  - **Client Secret:** Enter the `OAUTH_CLIENT_SECRET` configured for Claude.ai with your OAuth provider.
+  - **Scope:** Enter the required `OAUTH_SCOPES` (e.g., `read:transcripts`) that Claude.ai should request.
+  - **Token URL:** The URL of your OAuth provider's **token issuance endpoint** (e.g., `https://your-oauth-provider.com/oauth/token` or `https://your-oauth-provider.com/token`). This is where Claude.ai will request an access token using its client credentials.
 
-Click **"Connect"** or **"Save"**.
+Click **"Connect"** or **"Save"**..
 
 ### Step 4: Verify Connection
 
@@ -309,16 +335,28 @@ For persistent tunnel configuration:
    ```
    Expected response: `{"status": "healthy"}`
 
-4. **Use the tool remotely:**
+4. **Use the tool remotely (with OAuth authentication):**
+
+   **Note:** All tool endpoints require OAuth 2.0 authentication. Include a valid bearer token in the Authorization header:
+
    ```bash
    curl -X POST "https://your-tunnel-url/tools/invoke" \
      -H "Content-Type: application/json" \
+     -H "Authorization: Bearer YOUR_OAUTH_TOKEN_HERE" \
      -d '{
        "tool_name": "get_youtube_transcript",
        "parameters": {
          "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
        }
      }'
+   ```
+
+   **Without authentication, you'll receive a 401 error:**
+   ```json
+   {
+     "error": "invalid_request",
+     "error_description": "Authorization header is missing"
+   }
    ```
 
 5. **Stop when finished:**
@@ -381,18 +419,18 @@ cloudflared tunnel info mcp-server
 
 **⚠️ IMPORTANT SECURITY NOTICE:**
 
-- **No Authentication Yet:** OAuth 2.0 authentication will be added in Epic 2 (Story 2.1)
-- **Keep URL Private:** Do not share your tunnel URL publicly until authentication is implemented
+- **OAuth 2.0 Protected:** All tool endpoints are protected by OAuth 2.0 bearer token authentication
+- **Health Endpoint Unauthenticated:** The `/health` endpoint remains public for Kubernetes probes
+- **Token Security:** Never log or expose OAuth tokens in logs, code, or error messages
 - **HTTPS Only:** Always use HTTPS URLs (Cloudflare provides automatic TLS)
 - **Free Tier:** Cloudflare free tier includes DDoS protection and automatic HTTPS certificates
 
 ### Known Limitations
 
-1. **No OAuth Protection:** Authentication will be added in Epic 2, Story 2.1
-2. **Local Machine Dependency:** Tunnel only works when your local machine is running and online
-3. **Single Point of Failure:** If local machine goes offline, the tunnel becomes unavailable
-4. **Development Only:** This setup is for local development; production deployment will use Kubernetes (Epic 2)
-5. **Temporary URLs (Quick Tunnel):** Quick tunnel URLs expire when the tunnel stops; use named tunnels for persistence
+1. **Local Machine Dependency:** Tunnel only works when your local machine is running and online
+2. **Single Point of Failure:** If local machine goes offline, the tunnel becomes unavailable
+3. **Development Only:** This setup is for local development; production deployment will use Kubernetes (Epic 2)
+4. **Temporary URLs (Quick Tunnel):** Quick tunnel URLs expire when the tunnel stops; use named tunnels for persistence
 
 ### MCP Protocol Connection Troubleshooting
 

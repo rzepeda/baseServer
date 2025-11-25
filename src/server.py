@@ -13,11 +13,10 @@ from starlette import status
 
 from src.config import get_config
 from src.handlers.health import health_check
-from src.middleware.oauth import oauth_middleware
+from src.middleware.oauth import OAuthMiddleware
 from src.models.errors import ErrorCode, MCPError
 from src.models.mcp import MCPToolDefinition, ToolExecutionContext
 from src.registry.tool_registry import ToolRegistrationError, ToolRegistry
-from src.tools.youtube_tool import YouTubeTool
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -55,13 +54,16 @@ app = FastAPI(
 )
 
 # Add OAuth middleware (applies to all routes except /health)
-app.middleware("http")(oauth_middleware)
+app.add_middleware(OAuthMiddleware, exclude_paths=["/health"])
 
 
 @app.get("/health")
-async def health() -> JSONResponse:
+async def health(request: Request) -> JSONResponse:
     """Health check endpoint for Kubernetes probes."""
-    return await health_check(app.state.registry)
+    # Use ToolRegistry singleton directly instead of app.state
+    # This makes health check work even before lifespan completes
+    registry = ToolRegistry()
+    return await health_check(registry)
 
 
 @app.post("/tools/invoke")

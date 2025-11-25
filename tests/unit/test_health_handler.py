@@ -1,10 +1,12 @@
 """Unit tests for the health check handler."""
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.server import app
 
 
+@pytest.mark.usefixtures("bypass_oauth_for_most_tests")
 def test_health_check() -> None:
     """
 
