@@ -21,7 +21,7 @@ tool_registry = ToolRegistry()
 # Cloudflare's free tunnel doesn't support SSE streaming properly
 mcp = FastMCP(
     "youtube-transcript-server",
-    stateless_http=True,  # Allow stateless HTTP requests (no SSE required)
+    # stateless_http=True,  # Allow stateless HTTP requests (no SSE required)
 )
 
 
@@ -80,6 +80,7 @@ async def get_youtube_transcript(url: str) -> str:
 @mcp.custom_route("/health", methods=["GET"])
 async def health_endpoint(request: Request) -> JSONResponse:
     """Health check endpoint for MCP server."""
+    logger.info("Health check endpoint called.")
     from datetime import UTC, datetime
 
     response_data = {
@@ -93,10 +94,17 @@ async def health_endpoint(request: Request) -> JSONResponse:
     return JSONResponse(content=response_data)
 
 
+from src.config import get_config  # noqa: E402
 from src.middleware.oauth import OAuthMiddleware  # noqa: E402
 
 # Export the ASGI application from FastMCP
 # In stateless mode, use streamable_http_app (works with Cloudflare tunnel)
 # MCP messages endpoint will be at /messages/
 # Apply OAuthMiddleware to protect endpoints, excluding /health
-app = OAuthMiddleware(mcp.streamable_http_app(), exclude_paths=["/health"])
+config = get_config()
+if config.use_oauth:
+    logger.info("OAuth middleware enabled for MCP server.")
+    app = OAuthMiddleware(mcp.sse_app, exclude_paths=["/health"])
+else:
+    logger.warning("OAuth middleware is disabled for MCP server. This is not safe for production.")
+    app = mcp.sse_app

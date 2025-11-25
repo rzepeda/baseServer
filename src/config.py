@@ -34,6 +34,11 @@ class Config(BaseSettings):
         description="Cloudflare Tunnel URL for external access to the MCP server",
     )
 
+    # Development Flags
+    use_oauth: bool = Field(
+        default=True, description="Enable/disable OAuth middleware for local development"
+    )
+
     # OAuth Configuration for Middleware
     oauth_provider_url: str = Field(..., description="OAuth provider base URL for token validation")
     oauth_client_id: str = Field(..., description="OAuth client ID")

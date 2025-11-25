@@ -208,6 +208,12 @@
     - Invalid auth rejected properly
     - Service survives pod restart (K8s reschedules)
     - Logs provide actionable debugging information
-    - Can roll back deployment if needed
+## Story 2.5: Configurable OAuth Middleware
+
+**As a** developer,
+**I want** to enable or disable OAuth 2.0 authentication via an environment variable,
+**so that** I can easily run the application in a local development environment without needing to set up a full OAuth provider.
+
+See [STORY-3: Configurable OAuth Middleware](../../docs/stories/story_configurable_oauth.md)
 
 ---

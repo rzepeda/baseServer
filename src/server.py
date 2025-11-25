@@ -54,7 +54,13 @@ app = FastAPI(
 )
 
 # Add OAuth middleware (applies to all routes except /health)
-app.add_middleware(OAuthMiddleware, exclude_paths=["/health"])
+config = get_config()
+if config.use_oauth:
+    logger.info("OAuth middleware enabled for REST API server.")
+    app.add_middleware(OAuthMiddleware, exclude_paths=["/health"])
+else:
+    logger.warning("OAuth middleware is disabled for REST API server. This is not safe for production.")
+
 
 
 @app.get("/health")
