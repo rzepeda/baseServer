@@ -23,6 +23,10 @@ class Config(BaseSettings):
     server_host: str = Field(default="0.0.0.0", description="Server bind address")
     mcp_port: int = Field(default=8080, description="MCP Server port", ge=1, le=65535)
     rest_api_port: int = Field(default=8081, description="REST API Server port", ge=1, le=65535)
+    cors_allowed_origins: str = Field(
+        default="",
+        description="Comma-separated list of allowed CORS origins (e.g., 'https://claude.ai,https://*.claude.ai')",
+    )
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
         default="INFO", description="Logging level"
     )

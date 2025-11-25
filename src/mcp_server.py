@@ -99,22 +99,38 @@ async def health_endpoint(request: Request) -> JSONResponse:
     return JSONResponse(content=response_data)
 
 
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from src.config import get_config  # noqa: E402
 from src.middleware.oauth import OAuthMiddleware  # noqa: E402
 
 # Export the ASGI application from FastMCP
-# In stateless mode (USE_SSE=False), use mcp.streamable_http_app (stateless HTTP, no SSE required)
-# In SSE mode (USE_SSE=True), use mcp.sse_app (SSE-based communication)
-# Apply OAuthMiddleware to protect endpoints, excluding /health
+# Claude.ai requires SSE transport with /sse and /messages/ endpoints
 config = get_config()
 
 # Select the appropriate app based on SSE configuration
 if config.use_sse:
-    logger.info("SSE mode enabled for MCP server.")
-    base_app = mcp.sse_app
+    logger.info("SSE mode enabled for MCP server (required for Claude.ai).")
+    base_app = mcp.sse_app()  # Call the method to get the ASGI app (returns Starlette app)
 else:
     logger.info("Stateless HTTP mode enabled for MCP server (SSE disabled).")
-    base_app = mcp.streamable_http_app()  # Call the method to get the ASGI app
+    base_app = mcp.streamable_http_app()
+
+# Apply CORS middleware for Claude.ai using Starlette's built-in CORS
+if config.cors_allowed_origins:
+    from starlette.middleware.cors import CORSMiddleware as StarletteCORS
+
+    origins = [origin.strip() for origin in config.cors_allowed_origins.split(",")]
+    logger.info("CORS middleware enabled for MCP server", allowed_origins=origins)
+
+    # Wrap the Starlette app with CORS middleware
+    base_app.add_middleware(
+        StarletteCORS,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
 
 # Apply OAuth middleware if enabled
 if config.use_oauth:

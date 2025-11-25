@@ -10,9 +10,11 @@ from jsonschema import ValidationError as JSONSchemaValidationError
 from jsonschema import validate
 from pydantic import BaseModel
 from starlette import status
+from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import get_config
 from src.handlers.health import health_check
+from src.handlers.jsonrpc_mcp import router as jsonrpc_router
 from src.middleware.oauth import OAuthMiddleware
 from src.models.errors import ErrorCode, MCPError
 from src.models.mcp import MCPToolDefinition, ToolExecutionContext
@@ -53,13 +55,31 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add OAuth middleware (applies to all routes except /health)
+# Include JSON-RPC MCP router (Claude.ai compatible endpoint)
+app.include_router(jsonrpc_router)
+logger.info("JSON-RPC MCP endpoint registered at /mcp")
+
+# Add OAuth middleware (applies to all routes except /health and /mcp for now)
 config = get_config()
 if config.use_oauth:
     logger.info("OAuth middleware enabled for REST API server.")
-    app.add_middleware(OAuthMiddleware, exclude_paths=["/health"])
+    app.add_middleware(OAuthMiddleware, exclude_paths=["/health", "/mcp"])
 else:
     logger.warning("OAuth middleware is disabled for REST API server. This is not safe for production.")
+
+# Add CORS middleware to allow requests from specific origins
+if config.cors_allowed_origins:
+    origins = [origin.strip() for origin in config.cors_allowed_origins.split(",")]
+    logger.info("CORS middleware enabled", allowed_origins=origins)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    logger.warning("CORS middleware is disabled as no origins are configured. This may prevent web-based clients from connecting.")
 
 
 
