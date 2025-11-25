@@ -16,12 +16,17 @@ logger = get_logger(__name__)
 # Use singleton tool registry (tools are registered in __main__.py)
 tool_registry = ToolRegistry()
 
+# Load configuration to determine SSE mode
+from src.config import get_config as _get_config  # noqa: E402
+
+_config = _get_config()
+
 # Initialize FastMCP server
-# Use stateless HTTP mode for compatibility with Cloudflare tunnel
-# Cloudflare's free tunnel doesn't support SSE streaming properly
+# Use stateless HTTP mode when USE_SSE=False (required for Claude.ai integration)
+# Use SSE mode when USE_SSE=True (for local SSE-capable MCP clients)
 mcp = FastMCP(
     "youtube-transcript-server",
-    # stateless_http=True,  # Allow stateless HTTP requests (no SSE required)
+    stateless_http=not _config.use_sse,  # Stateless HTTP when SSE is disabled
 )
 
 
@@ -98,13 +103,23 @@ from src.config import get_config  # noqa: E402
 from src.middleware.oauth import OAuthMiddleware  # noqa: E402
 
 # Export the ASGI application from FastMCP
-# In stateless mode, use streamable_http_app (works with Cloudflare tunnel)
-# MCP messages endpoint will be at /messages/
+# In stateless mode (USE_SSE=False), use mcp.streamable_http_app (stateless HTTP, no SSE required)
+# In SSE mode (USE_SSE=True), use mcp.sse_app (SSE-based communication)
 # Apply OAuthMiddleware to protect endpoints, excluding /health
 config = get_config()
+
+# Select the appropriate app based on SSE configuration
+if config.use_sse:
+    logger.info("SSE mode enabled for MCP server.")
+    base_app = mcp.sse_app
+else:
+    logger.info("Stateless HTTP mode enabled for MCP server (SSE disabled).")
+    base_app = mcp.streamable_http_app()  # Call the method to get the ASGI app
+
+# Apply OAuth middleware if enabled
 if config.use_oauth:
     logger.info("OAuth middleware enabled for MCP server.")
-    app = OAuthMiddleware(mcp.sse_app, exclude_paths=["/health"])
+    app = OAuthMiddleware(base_app, exclude_paths=["/health"])
 else:
     logger.warning("OAuth middleware is disabled for MCP server. This is not safe for production.")
-    app = mcp.sse_app
+    app = base_app

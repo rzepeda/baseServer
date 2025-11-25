@@ -38,6 +38,9 @@ class Config(BaseSettings):
     use_oauth: bool = Field(
         default=True, description="Enable/disable OAuth middleware for local development"
     )
+    use_sse: bool = Field(
+        default=False, description="Enable/disable SSE mode for MCP server (use stateless HTTP if False)"
+    )
 
     # OAuth Configuration for Middleware
     oauth_provider_url: str = Field(..., description="OAuth provider base URL for token validation")
