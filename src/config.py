@@ -28,19 +28,24 @@ class Config(BaseSettings):
 
     # Cloudflare Tunnel Configuration
     cloudflare_tunnel_url: str = Field(
-        default="https://your-tunnel-subdomain.trycloudflare.com",
+        default="https://agentictools.uk",
         description="Cloudflare Tunnel URL for external access to the MCP server",
     )
 
-    # OAuth Configuration
-    oauth_issuer_url: str = Field(..., description="OAuth issuer URL for token validation")
-    oauth_audience: str = Field(..., description="Expected OAuth audience")
+    # OAuth Configuration (optional for minimal server mode)
+    oauth_issuer_url: str = Field(default="", description="OAuth issuer URL for token validation")
+    oauth_audience: str = Field(default="", description="Expected OAuth audience")
     oauth_token_cache_ttl: int = Field(
         default=60, description="OAuth token cache TTL in seconds", ge=0
+    )
+
+    # Minimal Server Mode (for debugging/PoC)
+    use_minimal_server: bool = Field(
+        default=False, description="Use minimal MCP server instead of full server"
     )
 
 
 @lru_cache
 def get_config() -> Config:
     """Get cached configuration instance."""
-    return Config()  # type: ignore[call-arg]
+    return Config()

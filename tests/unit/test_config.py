@@ -19,6 +19,7 @@ def test_config_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.delenv("OAUTH_ISSUER_URL", raising=False)
     monkeypatch.delenv("OAUTH_AUDIENCE", raising=False)
+    monkeypatch.setenv("CLOUDFLARE_TUNNEL_URL", "https://agentictools.uk")
     config = Config(
         oauth_issuer_url="test",
         oauth_audience="test",
@@ -30,7 +31,7 @@ def test_config_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.log_level == "INFO"
     assert config.environment == "development"
     assert config.oauth_token_cache_ttl == 60
-    assert config.cloudflare_tunnel_url == "https://your-tunnel-subdomain.trycloudflare.com"
+    assert config.cloudflare_tunnel_url == "https://agentictools.uk"
 
 
 def test_config_environment_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
