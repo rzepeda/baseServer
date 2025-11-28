@@ -44,7 +44,7 @@ async def get_youtube_transcript(url: str) -> str:
         correlation_id = str(uuid4())
         bound_logger = logger.bind(correlation_id=correlation_id)
         auth_context = auth_context_var.get()
-        auth_context_dict = auth_context.to_dict() if auth_context else None
+        auth_context_dict = auth_context.model_dump() if auth_context else None
 
         tool_context = ToolExecutionContext(
             correlation_id=correlation_id, logger=bound_logger, auth_context=auth_context_dict

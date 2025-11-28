@@ -187,11 +187,14 @@ class OAuthMiddleware(BaseHTTPMiddleware):
         auth_context_var.set(auth_context)
         response = await call_next(request)
 
-        # Add security headers to all responses
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # Add security headers to non-streaming responses only
+        # SSE responses have already started streaming and cannot have headers modified
+        content_type = response.headers.get("content-type", "")
+        if "text/event-stream" not in content_type:
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["X-XSS-Protection"] = "1; mode=block"
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+            response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         return response
