@@ -45,14 +45,16 @@ def mock_keycloak_discovery():
 async def test_discovery_endpoint_returns_metadata(mock_keycloak_discovery):
     """Test that discovery endpoint successfully returns OAuth metadata."""
     with patch("httpx.AsyncClient") as mock_client_class:
-        mock_response = AsyncMock()
-        mock_response.json.return_value = mock_keycloak_discovery
-        mock_response.raise_for_status = AsyncMock()
+        mock_response = AsyncMock(spec=httpx.Response)
+        # json() is a regular method, not async
+        mock_response.json = lambda: mock_keycloak_discovery
+        # raise_for_status() is also regular, not async
+        mock_response.raise_for_status = lambda: None
 
         mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__aenter__.return_value = mock_client
-        mock_client.__aexit__.return_value = None
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
 
         mock_client_class.return_value = mock_client
 
@@ -71,17 +73,19 @@ async def test_discovery_endpoint_returns_metadata(mock_keycloak_discovery):
 async def test_discovery_endpoint_accessible_without_auth():
     """Test that discovery endpoint is accessible without authentication."""
     with patch("httpx.AsyncClient") as mock_client_class:
-        mock_response = AsyncMock()
-        mock_response.json.return_value = {
+        mock_response = AsyncMock(spec=httpx.Response)
+        # json() is a regular method, not async
+        mock_response.json = lambda: {
             "issuer": "https://auth.test.com/realms/test-realm",
             "authorization_endpoint": "https://auth.test.com/realms/test-realm/protocol/openid-connect/auth",
         }
-        mock_response.raise_for_status = AsyncMock()
+        # raise_for_status() is also regular, not async
+        mock_response.raise_for_status = lambda: None
 
         mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__aenter__.return_value = mock_client
-        mock_client.__aexit__.return_value = None
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
 
         mock_client_class.return_value = mock_client
 

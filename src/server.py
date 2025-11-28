@@ -142,7 +142,10 @@ async def invoke_tool(request: Request) -> JSONResponse:
         try:
             validate(instance=parameters, schema=tool.input_schema)
         except JSONSchemaValidationError as e:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Invalid parameters: {e.message}")
+            return JSONResponse(
+                {"error_code": "invalid_parameters", "error": f"Invalid parameters: {e.message}"},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         tool_context = ToolExecutionContext(
             correlation_id=correlation_id,
@@ -155,6 +158,8 @@ async def invoke_tool(request: Request) -> JSONResponse:
             result = result.model_dump()
 
         return JSONResponse({"result": result})
+    except HTTPException:
+        raise
     except Exception as e:
         bound_logger.error("Unhandled exception in invoke_tool", error=str(e), exc_info=True)
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error")

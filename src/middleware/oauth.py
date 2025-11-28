@@ -158,8 +158,12 @@ class OAuthMiddleware(BaseHTTPMiddleware):
         """
         Processes the request, handles OAuth validation, and passes to the next middleware/route.
         """
+        # Skip auth entirely for excluded paths
         if request.url.path in self.exclude_paths:
             return await call_next(request)
+
+        # Check if request path starts with /mcp (mounted MCP app) - needs special handling
+        is_mcp_path = request.url.path.startswith("/mcp")
 
         authorization_header = request.headers.get("authorization")
         if not authorization_header:
@@ -187,10 +191,10 @@ class OAuthMiddleware(BaseHTTPMiddleware):
         auth_context_var.set(auth_context)
         response = await call_next(request)
 
-        # Add security headers to non-streaming responses only
-        # SSE responses have already started streaming and cannot have headers modified
-        content_type = response.headers.get("content-type", "")
-        if "text/event-stream" not in content_type:
+        # Skip header modification for MCP paths (SSE streams from mounted app)
+        # Headers cannot be modified after SSE streaming starts
+        if not is_mcp_path:
+            # Add security headers to regular HTTP responses
             response.headers["X-Content-Type-Options"] = "nosniff"
             response.headers["X-Frame-Options"] = "DENY"
             response.headers["X-XSS-Protection"] = "1; mode=block"

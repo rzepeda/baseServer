@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette import status
 
-from src.__main__ import rest_api_app as app
+from src.server import app
 from src.models.errors import ErrorCode
 
 pytestmark = pytest.mark.usefixtures("bypass_oauth_for_most_tests")

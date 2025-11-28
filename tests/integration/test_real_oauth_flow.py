@@ -3,6 +3,9 @@ import os
 import httpx
 import pytest
 from dotenv import load_dotenv
+
+# SKIP: Manual integration test for real OAuth with Keycloak - not for automated testing
+pytestmark = pytest.mark.skip(reason="Manual integration test - requires real Keycloak instance")
 from fastapi.testclient import TestClient
 
 from src.server import app  # Use the REST API server app

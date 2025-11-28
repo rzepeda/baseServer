@@ -93,7 +93,7 @@ follow_imports = "normal"
 strict_equality = true
 
 [tool.pytest.ini_options]
-minversion = "8.0"
+minversion = "7.0"
 addopts = "-ra -q --strict-markers --cov=src --cov-report=term-missing"
 testpaths = ["tests"]
 pythonpath = ["."]

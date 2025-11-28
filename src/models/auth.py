@@ -22,5 +22,5 @@ class OAuthConfig(BaseModel):
     provider_url: str
     client_id: str
     client_secret: SecretStr
-    scopes: str
+    scopes: list[str] | str
     validation_endpoint: str

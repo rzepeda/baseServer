@@ -64,11 +64,13 @@ class Config(BaseSettings):
     @property
     def oauth_config(self) -> OAuthConfig:
         """Returns an instance of OAuthConfig for easy access and validation."""
+        # Parse scopes from comma-separated string to list
+        scopes_list = [s.strip() for s in self.oauth_scopes.split(",") if s.strip()]
         return OAuthConfig(
             provider_url=self.oauth_provider_url,
             client_id=self.oauth_client_id,
             client_secret=self.oauth_client_secret,
-            scopes=self.oauth_scopes,
+            scopes=scopes_list,
             validation_endpoint=self.oauth_validation_endpoint,
         )
 

@@ -12,8 +12,9 @@ import pytest
 import uvicorn
 from fastapi import FastAPI
 
-from src.__main__ import mcp_app, rest_api_app
 from src.config import get_config
+from src.mcp_server import mcp_app
+from src.server import app as rest_api_app
 from src.server import lifespan
 
 # Use different ports for testing to avoid conflicts

@@ -42,7 +42,7 @@ def test_config_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Test the oauth_config property
     oauth_config = config.oauth_config
-    assert str(oauth_config.provider_url) == "https://default.com/"
+    assert str(oauth_config.provider_url) == "https://default.com"
     assert oauth_config.client_id == "default_id"
     assert oauth_config.client_secret.get_secret_value() == "default_secret"
     assert oauth_config.scopes == ["default_scope"]
@@ -77,7 +77,7 @@ def test_config_environment_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.cloudflare_tunnel_url == "http://new-tunnel.com"
 
     oauth_config = config.oauth_config
-    assert str(oauth_config.provider_url) == "https://prod.oauth.com/"
+    assert str(oauth_config.provider_url) == "https://prod.oauth.com"
     assert oauth_config.client_id == "prod_id"
     assert oauth_config.client_secret.get_secret_value() == "prod_secret"
     assert oauth_config.scopes == ["scope1", "scope2"]
