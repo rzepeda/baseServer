@@ -1,0 +1,28 @@
+
+schema: 1
+story: "2.1.1"
+story_title: "Claude OAuth Implementation"
+gate: "FAIL"
+status_reason: "Story is untestable and therefore unreviewable. The project's test suite is in a completely broken state following the work in Story 2.1."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-11-28T20:05:00Z"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "ENV-001"
+    severity: high
+    finding: "The test suite is non-functional, preventing any quality assessment of this story."
+    suggested_action: "Do not start work on this story. The development team must first resolve all test failures and recommendations outlined in the QA report for Story 2.1."
+
+recommendations:
+  immediate:
+    - action: "Move this story back to the backlog and mark it as 'Blocked' by Story 2.1's test failures."
+      refs: ["docs/stories/2.1.story.md#QA-Results"]
+  future: []
+
+nfr_validation:
+  security: { status: FAIL, notes: "Cannot be assessed." }
+  performance: { status: FAIL, notes: "Cannot be assessed." }
+  reliability: { status: FAIL, notes: "Cannot be assessed." }
+  maintainability: { status: FAIL, notes: "Cannot be assessed." }

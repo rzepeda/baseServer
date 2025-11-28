@@ -1,282 +1,189 @@
+
 import hashlib
-import time
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpx
 import pytest
-from fastapi import FastAPI
-from starlette.requests import Request
-from starlette.responses import JSONResponse
+from jose import jwt as jose_jwt
 from starlette.testclient import TestClient
+from fastapi import FastAPI, Request
+from starlette.responses import JSONResponse
 
-from src.middleware.oauth import (
-    OAuthError,
-    OAuthMiddleware,
-    validate_token_with_authlib,
-)
+from src.middleware.oauth import OAuthMiddleware, OAuthError
 from src.models.auth import AuthContext, OAuthConfig
-from tests.conftest import _real_oauth_dispatch
 
-# SKIP: These tests are for the old OAuth implementation (validation endpoint).
-# Current implementation uses JWT/JWKS validation. Tests need to be rewritten.
-pytestmark = pytest.mark.skip(reason="Tests for old OAuth implementation - needs rewrite for JWT/JWKS")
-
+# --- Test Data and Mocks ---
 
 @pytest.fixture
-def test_oauth_config() -> OAuthConfig:
-    """Provides a consistent OAuth configuration for tests."""
-    return OAuthConfig(
-        provider_url="https://test-oauth.com",
-        client_id="test-client",
-        client_secret="test-secret",
-        scopes=["read:transcripts"],
-        validation_endpoint="https://test-oauth.com/validate",
-    )
+def jwks_keys():
+    """Fixture for a sample JWK private/public key pair."""
+    # This is a sample RSA key for testing purposes only.
+    private_key = {
+        "kty": "RSA",
+        "d": "d_val", "e": "AQAB", "n": "n_val",
+        "p": "p_val", "q": "q_val",
+        "dp": "dp_val", "dq": "dq_val", "qi": "qi_val"
+    }
+    public_key = {"kty": "RSA", "e": "AQAB", "n": "n_val", "kid": "test-key-id"}
+    return private_key, public_key
 
-
-@pytest.fixture
-def mock_httpx_client() -> AsyncMock:
-    """Provides a mock of httpx.AsyncClient."""
-    return AsyncMock(spec=httpx.AsyncClient)
-
-
-# --- TokenCache Unit Tests (Unchanged) ---
-
-
-def test_token_cache_set_and_get():
-    cache = TokenCache(ttl_seconds=10)
-    token_hash = "testhash"
-    auth_context = AuthContext(
-        is_valid=True, token_hash=token_hash, scopes=["s1"], client_id="c1", expires_at=None
-    )
-    cache.set(token_hash, auth_context)
-    assert cache.get(token_hash) == auth_context
-
-
-def test_token_cache_expiration():
-    cache = TokenCache(ttl_seconds=0.01)
-    token_hash = "testhash"
-    auth_context = AuthContext(
-        is_valid=True, token_hash=token_hash, scopes=["s1"], client_id="c1", expires_at=None
-    )
-    cache.set(token_hash, auth_context)
-    time.sleep(0.02)
-    assert cache.get(token_hash) is None
-
-
-def test_token_cache_delete():
-    cache = TokenCache(ttl_seconds=10)
-    token_hash = "testhash"
-    auth_context = AuthContext(
-        is_valid=True, token_hash=token_hash, scopes=["s1"], client_id="c1", expires_at=None
-    )
-    cache.set(token_hash, auth_context)
-    cache.delete(token_hash)
-    assert cache.get(token_hash) is None
-
-
-def test_token_cache_disabled():
-    cache = TokenCache(ttl_seconds=0)
-    token_hash = "testhash"
-    auth_context = AuthContext(
-        is_valid=True, token_hash=token_hash, scopes=["s1"], client_id="c1", expires_at=None
-    )
-    cache.set(token_hash, auth_context)
-    assert cache.get(token_hash) is None
-
-
-# --- Standalone `validate_token_with_provider` Unit Tests ---
-
-
-@pytest.mark.asyncio
-async def test_validate_token_success(test_oauth_config, mock_httpx_client):
-    """Tests successful token validation."""
-    token = "valid_token"
-    token_hash = hashlib.sha256(token.encode()).hexdigest()
-    exp_time = int((datetime.now(UTC) + timedelta(hours=1)).timestamp())
-    mock_httpx_client.post.return_value = httpx.Response(
-        200,
-        json={
-            "active": True,
-            "scope": "read:transcripts",
-            "client_id": "test-client-id",
-            "exp": exp_time,
-        },
-        request=httpx.Request("POST", str(test_oauth_config.validation_endpoint)),
-    )
-
-    result_context = await validate_token_with_provider(
-        token, token_hash, test_oauth_config, mock_httpx_client
-    )
-
-    mock_httpx_client.post.assert_awaited_once()
-    assert result_context.is_valid is True
-    assert result_context.client_id == "test-client-id"
-    assert result_context.scopes == ["read:transcripts"]
-    assert result_context.token_hash == token_hash
-
-
-@pytest.mark.asyncio
-async def test_validate_token_inactive(test_oauth_config, mock_httpx_client):
-    """Tests validation failure for an inactive token."""
-    token = "inactive_token"
-    token_hash = hashlib.sha256(token.encode()).hexdigest()
-    mock_httpx_client.post.return_value = httpx.Response(
-        200,
-        json={"active": False},
-        request=httpx.Request("POST", str(test_oauth_config.validation_endpoint)),
-    )
-
-    with pytest.raises(OAuthError) as exc_info:
-        await validate_token_with_provider(token, token_hash, test_oauth_config, mock_httpx_client)
-
-    assert exc_info.value.status_code == 401
-    assert exc_info.value.error == "invalid_token"
-
-
-@pytest.mark.asyncio
-async def test_validate_token_http_401_error(test_oauth_config, mock_httpx_client):
-    """Tests validation failure when provider returns 401."""
-    token = "invalid_token"
-    token_hash = hashlib.sha256(token.encode()).hexdigest()
-    mock_request = httpx.Request("POST", str(test_oauth_config.validation_endpoint))
-    mock_response = httpx.Response(
-        401,
-        json={"error": "invalid_token", "error_description": "The token is wrong"},
-        request=mock_request,
-    )
-    mock_httpx_client.post.side_effect = httpx.HTTPStatusError(
-        "Unauthorized", request=mock_request, response=mock_response
-    )
-
-    with pytest.raises(OAuthError) as exc_info:
-        await validate_token_with_provider(token, token_hash, test_oauth_config, mock_httpx_client)
-
-    assert exc_info.value.status_code == 401
-    assert exc_info.value.error == "invalid_token"
-    assert exc_info.value.description == "The token is wrong"
-
-
-@pytest.mark.asyncio
-async def test_validate_token_timeout(test_oauth_config, mock_httpx_client):
-    """Tests timeout during token validation."""
-    token = "timeout_token"
-    token_hash = hashlib.sha256(token.encode()).hexdigest()
-    mock_httpx_client.post.side_effect = httpx.TimeoutException("Connection timed out")
-
-    with pytest.raises(OAuthError) as exc_info:
-        await validate_token_with_provider(token, token_hash, test_oauth_config, mock_httpx_client)
-
-    assert exc_info.value.status_code == 504
-    assert "timed out" in exc_info.value.description
-
-
-# --- Middleware Behavior Tests (using isolated TestClient) ---
-
-
-
+def create_test_jwt(private_key, issuer, audience, claims_override=None):
+    """Creates a signed JWT for testing."""
+    now = datetime.now(UTC)
+    claims = {
+        "iss": issuer,
+        "aud": audience,
+        "iat": now,
+        "exp": now + timedelta(hours=1),
+        "sub": "test-user-id",
+        "client_id": "test-client",
+        "scope": "read:transcripts"
+    }
+    if claims_override:
+        claims.update(claims_override)
+    
+    headers = {"kid": private_key.get("kid", "test-key-id")}
+    return jose_jwt.encode(claims, private_key, algorithm="RS256", headers=headers)
 
 @pytest.fixture
-def isolated_client(monkeypatch, test_oauth_config):
-    """
-    Creates a clean FastAPI TestClient with OAuthMiddleware for isolated testing.
-    This fixture temporarily un-patches the session-wide OAuth bypass to test
-    the real middleware logic.
-    """
-    # Temporarily undo the session-wide patch to test real middleware logic
-    original_dispatch = OAuthMiddleware.dispatch
-    OAuthMiddleware.dispatch = _real_oauth_dispatch
+def mock_config():
+    """Fixture for a mocked application configuration."""
+    cfg = MagicMock()
+    cfg.keycloak_url = "https://test.keycloak.com"
+    cfg.keycloak_realm = "test-realm"
+    cfg.oauth_token_cache_ttl = 0  # Disable caching for most tests
+    return cfg
 
-    try:
-        # Mock get_config for this specific test client scope
-        mock_cfg = MagicMock()
-        mock_cfg.oauth_config = test_oauth_config
-        mock_cfg.oauth_token_cache_ttl = 60
-        monkeypatch.setattr("src.middleware.oauth.get_config", lambda: mock_cfg)
+@pytest.fixture
+def isolated_app_client(mock_config, jwks_keys):
+    """Creates a fully isolated FastAPI app with the OAuth middleware for testing."""
+    
+    with patch('src.middleware.oauth.get_config', return_value=mock_config), \
+         patch('src.middleware.oauth._get_cached_jwks') as mock_get_jwks:
 
+        # Configure the mock to return the public key
+        _, public_key = jwks_keys
+        mock_get_jwks.return_value = {"keys": [public_key]}
+        
         app = FastAPI()
-
-        # This is the target app the middleware will call `call_next` on
-        @app.api_route("/{path:path}")
-        async def catch_all(request: Request):
-            auth_context = getattr(request.state, "auth_context", None)
-            client_id = auth_context.client_id if auth_context else "none"
-            return JSONResponse({"status": "ok", "auth_client_id": client_id})
-
-        # Add the real middleware
+        
+        # Add the middleware to be tested
         app.add_middleware(OAuthMiddleware, exclude_paths=["/health"])
+
+        # A simple endpoint to verify the middleware is working
+        @app.get("/")
+        async def root(request: Request):
+            auth_context = getattr(request.state, "auth_context", None)
+            if auth_context:
+                return JSONResponse({"status": "ok", "client_id": auth_context.client_id})
+            return JSONResponse({"status": "ok", "client_id": None})
+        
+        @app.get("/health")
+        async def health():
+            return JSONResponse({"status": "healthy"})
 
         yield TestClient(app)
 
-    finally:
-        # Restore the session-wide patch so other tests are not affected
-        OAuthMiddleware.dispatch = original_dispatch
 
+# --- Middleware Behavior Tests ---
 
-def test_middleware_missing_token(isolated_client):
-    response = isolated_client.get("/")
-    assert response.status_code == 401
-    assert response.json()["error"] == "invalid_request"
-    assert "Authorization header is missing" in response.json()["error_description"]
-
-
-def test_middleware_malformed_header(isolated_client):
-    response = isolated_client.get("/", headers={"Authorization": "NotBearer token"})
-    assert response.status_code == 401
-    assert response.json()["error"] == "invalid_request"
-    assert "must be in 'Bearer <token>' format" in response.json()["error_description"]
-
-
-def test_middleware_health_check_unauthenticated(isolated_client):
-    response = isolated_client.get("/health")
+def test_health_endpoint_is_excluded(isolated_app_client):
+    """Verify that the /health endpoint is not protected by auth."""
+    response = isolated_app_client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    assert response.json() == {"status": "healthy"}
+
+def test_missing_auth_header_returns_401(isolated_app_client):
+    """Verify that a request without an Authorization header is rejected."""
+    response = isolated_app_client.get("/")
+    assert response.status_code == 401
+    data = response.json()
+    assert data["error"] == "invalid_request"
+    assert "Authorization header is missing" in data["error_description"]
+
+def test_malformed_auth_header_returns_401(isolated_app_client):
+    """Verify that a request with a malformed Authorization header is rejected."""
+    response = isolated_app_client.get("/", headers={"Authorization": "Invalid value"})
+    assert response.status_code == 401
+    data = response.json()
+    assert data["error"] == "invalid_request"
+    assert "must be in 'Bearer <token> Perkenalkan" in data["error_description"]
+
+def test_invalid_jwt_signature_returns_401(isolated_app_client, jwks_keys, mock_config):
+    """Verify that a JWT with an invalid signature is rejected."""
+    # Create a token with a different key
+    wrong_private_key, _ = jwks_keys
+    wrong_private_key = wrong_private_key.copy()
+    wrong_private_key["d"] = "a_different_d_value"
+    
+    issuer = f"{mock_config.keycloak_url}/realms/{mock_config.keycloak_realm}"
+    token = create_test_jwt(wrong_private_key, issuer, "account")
+    
+    response = isolated_app_client.get("/", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401
+    data = response.json()
+    assert data["error"] == "invalid_token"
+    assert "Token validation failed: Signature verification failed" in data["error_description"]
 
 
-def test_middleware_token_caching(isolated_client, monkeypatch):
-    token = "a_cachable_token"
+def test_expired_jwt_returns_401(isolated_app_client, jwks_keys, mock_config):
+    """Verify that an expired JWT is rejected."""
+    private_key, _ = jwks_keys
+    issuer = f"{mock_config.keycloak_url}/realms/{mock_config.keycloak_realm}"
+    
+    # Create an expired token
+    exp_claims = {"exp": datetime.now(UTC) - timedelta(minutes=1)}
+    token = create_test_jwt(private_key, issuer, "account", claims_override=exp_claims)
+    
+    response = isolated_app_client.get("/", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401
+    data = response.json()
+    assert data["error"] == "invalid_token"
+    assert "Token has expired" in data["error_description"]
 
-    # Mock the validation function itself for this test
-    mock_validator = AsyncMock()
-    exp_time = datetime.now(UTC) + timedelta(hours=1)
-    mock_validator.return_value = AuthContext(
-        is_valid=True,
-        token_hash=hashlib.sha256(token.encode()).hexdigest(),
-        scopes=["read:all"],
-        expires_at=exp_time,
-        client_id="cached-client",
-    )
-    monkeypatch.setattr("src.middleware.oauth.validate_token_with_provider", mock_validator)
+def test_incorrect_issuer_returns_401(isolated_app_client, jwks_keys, mock_config):
+    """Verify that a JWT with an incorrect issuer is rejected."""
+    private_key, _ = jwks_keys
+    
+    # Create a token with a wrong issuer
+    token = create_test_jwt(private_key, "https://wrong.issuer.com", "account")
+    
+    response = isolated_app_client.get("/", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401
+    data = response.json()
+    assert data["error"] == "invalid_token"
+    assert "Invalid issuer" in data["error_description"]
 
-    # First call, should trigger validation
-    response1 = isolated_client.get("/", headers={"Authorization": f"Bearer {token}"})
-    assert response1.status_code == 200
-    assert response1.json()["auth_client_id"] == "cached-client"
-    mock_validator.assert_awaited_once()
-
-    # Second call, should be a cache hit
-    response2 = isolated_client.get("/", headers={"Authorization": f"Bearer {token}"})
-    assert response2.status_code == 200
-    assert response2.json()["auth_client_id"] == "cached-client"
-    mock_validator.assert_awaited_once()  # Assert it was NOT called again
-
-
-def test_middleware_end_to_end_valid_token(isolated_client, monkeypatch):
-    token = "e2e_valid_token"
-    mock_validator = AsyncMock()
-    exp_time = datetime.now(UTC) + timedelta(hours=1)
-    mock_validator.return_value = AuthContext(
-        is_valid=True,
-        token_hash=hashlib.sha256(token.encode()).hexdigest(),
-        scopes=["read:all"],
-        expires_at=exp_time,
-        client_id="e2e-client",
-    )
-    monkeypatch.setattr("src.middleware.oauth.validate_token_with_provider", mock_validator)
-
-    response = isolated_client.get("/", headers={"Authorization": f"Bearer {token}"})
-
+def test_valid_jwt_succeeds_and_attaches_auth_context(isolated_app_client, jwks_keys, mock_config):
+    """Verify that a valid JWT passes and the auth context is attached to the request."""
+    private_key, _ = jwks_keys
+    issuer = f"{mock_config.keycloak_url}/realms/{mock_config.keycloak_realm}"
+    
+    token = create_test_jwt(private_key, issuer, "account")
+    
+    response = isolated_app_client.get("/", headers={"Authorization": f"Bearer {token}"})
+    
     assert response.status_code == 200
-    assert response.json()["auth_client_id"] == "e2e-client"
-    mock_validator.assert_awaited_once()
+    data = response.json()
+    assert data["status"] == "ok"
+    assert data["client_id"] == "test-client"
+# --- Caching Tests ---
+
+@patch('src.middleware.oauth._get_cached_jwks')
+def test_jwks_caching(mock_get_jwks, jwks_keys):
+    """Verify that the JWKS fetching is cached."""
+    # Need to clear the lru_cache for this test to be reliable
+    from src.middleware.oauth import _get_cached_jwks as uncached_fn
+    uncached_fn.cache_clear()
+
+    _, public_key = jwks_keys
+    mock_get_jwks.return_value = {"keys": [public_key]}
+    
+    jwks_uri = "https://my-test-jwks.com/.well-known/jwks.json"
+    
+    # Call multiple times
+    uncached_fn(jwks_uri)
+    uncached_fn(jwks_uri)
+    
+    # Assert that the underlying httpx call was only made once
+    mock_get_jwks.assert_called_once_with(jwks_uri)

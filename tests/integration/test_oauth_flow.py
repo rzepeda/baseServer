@@ -1,143 +1,112 @@
-import time
-from unittest.mock import AsyncMock
-
-import httpx
+from unittest.mock import patch, MagicMock, AsyncMock
 import pytest
-from fastapi import FastAPI
 from starlette.testclient import TestClient
+from fastapi import FastAPI
 
 from src.config import get_config
 from src.middleware.oauth import OAuthMiddleware
 from src.models.mcp import ToolExecutionContext
 from src.registry.tool_registry import ToolRegistry
-
-# Import the actual route handlers and lifespan function
-from src.server import health, invoke_tool, lifespan, list_tools
-
-# SKIP: These tests are for the old OAuth implementation (validation endpoint).
-# Current implementation uses JWT/JWKS validation.
-pytestmark = pytest.mark.skip(reason="Tests for old OAuth implementation - needs rewrite for JWT/JWKS")
+from src.server import lifespan, invoke_tool, list_tools, health
+from tests.unit.test_oauth_middleware import create_test_jwt, jwks_keys
 
 
 @pytest.fixture
-def isolated_mcp_app_client(monkeypatch):
+def isolated_mcp_app_client(monkeypatch, jwks_keys):
     """
-    Creates a completely isolated FastAPI app instance for integration testing,
-    bypassing any session-wide fixtures from conftest.py.
+    Creates a completely isolated FastAPI app instance for integration testing.
+    This fixture patches the config and JWKS fetching to test the full flow.
     """
-    # Clear any cached config and set specific env vars for this test client
+    # Clear any cached config
     get_config.cache_clear()
-    monkeypatch.setenv("OAUTH_PROVIDER_URL", "https://test.oauth.provider")
-    monkeypatch.setenv("OAUTH_CLIENT_ID", "test-client")
-    monkeypatch.setenv("OAUTH_CLIENT_SECRET", "test-secret")
-    monkeypatch.setenv("OAUTH_SCOPES", "read:transcripts")
-    monkeypatch.setenv("OAUTH_VALIDATION_ENDPOINT", "https://test.oauth.provider/validate")
-    monkeypatch.setenv("OAUTH_TOKEN_CACHE_TTL", "60")
-    monkeypatch.setenv("KEYCLOAK_URL", "https://auth.test.com")
-    monkeypatch.setenv("KEYCLOAK_REALM", "test-realm")
+    
+    # Mock config
+    mock_cfg = MagicMock()
+    mock_cfg.keycloak_url = "https://test.keycloak.com"
+    mock_cfg.keycloak_realm = "test-realm"
+    mock_cfg.oauth_token_cache_ttl = 0  # Disable caching
+    
+    private_key, public_key = jwks_keys
 
-    # Create a fresh app instance and add routes and middleware manually
-    app = FastAPI(lifespan=lifespan)
-    app.add_api_route("/health", health, methods=["GET"])
-    app.add_api_route("/tools/invoke", invoke_tool, methods=["POST"])
-    app.add_api_route("/tools/list", list_tools, methods=["GET"])
-    app.add_middleware(OAuthMiddleware, exclude_paths=["/health"])
+    with patch('src.middleware.oauth.get_config', return_value=mock_cfg), \
+         patch('src.server.get_config', return_value=mock_cfg), \
+         patch('src.middleware.oauth._get_cached_jwks') as mock_get_jwks:
+        
+        mock_get_jwks.return_value = {"keys": [public_key]}
+        
+        # Create a fresh app instance
+        app = FastAPI(lifespan=lifespan)
+        app.add_api_route("/health", health, methods=["GET"])
+        app.add_api_route("/tools/invoke", invoke_tool, methods=["POST"])
+        app.add_api_route("/tools/list", list_tools, methods=["GET"])
+        app.add_middleware(OAuthMiddleware, exclude_paths=["/health"])
 
-    # Mock the httpx.AsyncClient that the middleware will use
-    mock_client = AsyncMock(spec=httpx.AsyncClient)
-    # The __aenter__ is used in 'async with' context manager
-    mock_client.__aenter__.return_value = mock_client
-    monkeypatch.setattr("httpx.AsyncClient", lambda: mock_client)
+        with TestClient(app) as client:
+            yield client, private_key, mock_cfg
 
-    with TestClient(app) as client:
-        # Yield the client and the mock so tests can configure it
-        yield client, mock_client
-
+    # Clear cache again after test
     get_config.cache_clear()
 
 
-def test_end_to_end_authenticated_tool_invocation(isolated_mcp_app_client, monkeypatch):
+def test_e2e_authenticated_tool_invocation(isolated_mcp_app_client, monkeypatch):
     """
-    Test that a tool invocation with a valid OAuth token succeeds and AuthContext is populated.
+    Tests the full end-to-end flow of invoking a tool with a valid JWT.
+    Ensures the AuthContext is correctly passed down to the tool handler.
     """
-    client, mock_httpx = isolated_mcp_app_client
+    client, private_key, mock_config = isolated_mcp_app_client
 
-    mock_httpx.post.return_value = httpx.Response(
-        200,
-        json={
-            "active": True,
-            "scope": "read:transcripts",
-            "client_id": "test-client-e2e",
-            "exp": int(time.time() + 3600),
-        },
-        request=httpx.Request("POST", str(get_config().oauth_config.validation_endpoint)),
-    )
+    # Mock the actual tool handler to prevent external calls and inspect its context
+    mock_tool_handler = AsyncMock(return_value={"result": "success"})
+    registry = ToolRegistry() # Get singleton instance
+    # It's better to patch the method on the instance if possible
+    monkeypatch.setattr(registry.get_tool("get_youtube_transcript"), "handler", mock_tool_handler)
 
-    # Mock the tool's handler to prevent actual external calls and to inspect the context
-    mock_tool_handler = AsyncMock(return_value={"full_text": "mock transcript"})
-    registry = ToolRegistry()
-    youtube_tool = registry.get_tool("get_youtube_transcript")
-    monkeypatch.setattr(youtube_tool, "handler", mock_tool_handler)
+    # Create a valid token
+    issuer = f"{mock_config.keycloak_url}/realms/{mock_config.keycloak_realm}"
+    token = create_test_jwt(private_key, issuer, "account")
 
-    headers = {"Authorization": "Bearer valid_token_for_e2e"}
+    headers = {"Authorization": f"Bearer {token}"}
     payload = {
         "tool_name": "get_youtube_transcript",
-        "parameters": {"url": "https://www.youtube.com/watch?v=test"},
+        "parameters": {"url": "https://youtube.com/watch?v=123"},
+        "context": {"correlation_id": "test-e2e-123"}
     }
-
+    
     response = client.post("/tools/invoke", headers=headers, json=payload)
 
+    # --- Asserts ---
     assert response.status_code == 200
-    assert response.json()["result"] == {"full_text": "mock transcript"}
+    assert response.json()["result"] == {"result": "success"}
+    
+    # Verify the tool handler was called
     mock_tool_handler.assert_awaited_once()
 
     # Inspect the context passed to the handler
     args, _ = mock_tool_handler.call_args
-    context: ToolExecutionContext = args[1]
-    assert context.auth_context is not None
-    assert context.auth_context.is_valid is True
-    assert context.auth_context.client_id == "test-client-e2e"
+    exec_context: ToolExecutionContext = args[1]
 
+    assert exec_context is not None
+    assert exec_context.auth_context is not None
+    assert exec_context.auth_context.is_valid is True
+    assert exec_context.auth_context.client_id == "test-client"
+    assert exec_context.auth_context.user_id == "test-user-id"
+    assert "read:transcripts" in exec_context.auth_context.scopes
+    assert exec_context.correlation_id == "test-e2e-123"
 
-def test_end_to_end_unauthenticated_request(isolated_mcp_app_client):
+def test_e2e_unauthenticated_tool_invocation(isolated_mcp_app_client):
     """
-    Test that a tool invocation without an OAuth token is rejected with 401.
+    Tests that invoking a tool without a token is rejected.
     """
-    client, _ = isolated_mcp_app_client
+    client, _, _ = isolated_mcp_app_client
+
     payload = {
         "tool_name": "get_youtube_transcript",
-        "parameters": {"url": "https://www.youtube.com/watch?v=test"},
+        "parameters": {"url": "https://youtube.com/watch?v=123"},
     }
-
+    
     response = client.post("/tools/invoke", json=payload)
 
     assert response.status_code == 401
-    assert response.json()["error"] == "invalid_request"
-    assert "Authorization header is missing" in response.json()["error_description"]
-
-
-def test_end_to_end_invalid_token_rejection(isolated_mcp_app_client):
-    """
-    Test that a tool invocation with an invalid OAuth token is rejected with 401.
-    """
-    client, mock_httpx = isolated_mcp_app_client
-
-    mock_response = httpx.Response(
-        401,
-        json={"error": "invalid_token", "error_description": "Token is not good"},
-        request=httpx.Request("POST", str(get_config().oauth_config.validation_endpoint)),
-    )
-    mock_httpx.post.side_effect = httpx.HTTPStatusError(
-        "Unauthorized", request=mock_response.request, response=mock_response
-    )
-
-    headers = {"Authorization": "Bearer some_bad_token"}
-    payload = {
-        "tool_name": "get_youtube_transcript",
-        "parameters": {"url": "https://www.youtube.com/watch?v=test"},
-    }
-
-    response = client.post("/tools/invoke", headers=headers, json=payload)
-
-    assert response.status_code == 401
-    assert response.json() == {"error": "invalid_token", "error_description": "Token is not good"}
+    data = response.json()
+    assert data["error"] == "invalid_request"
+    assert "Authorization header is missing" in data["error_description"]

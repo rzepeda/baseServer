@@ -1,37 +1,41 @@
 schema: 1
-story: '2.1'
-story_title: 'OAuth 2.0 Authentication Implementation'
-gate: PASS
-status_reason: 'All automated tests are now passing, including the previously skipped OAuth tests which have been refactored and enabled. The implementation meets all quality standards.'
-reviewer: 'Quinn (Test Architect)'
-updated: '2025-11-24T22:30:00Z'
+story: "2.1"
+story_title: "OAuth 2.0 Authentication Implementation"
+gate: "FAIL"
+status_reason: "Critical security feature (OAuth) is completely untested due to incorrect and disabled tests. The test suite is in a broken state, with multiple cascading failures."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-11-28T20:00:00Z"
 
-top_issues: []
 waiver: { active: false }
 
-quality_score: 100
-
-evidence:
-  tests_reviewed: 17
-  risks_identified: 0
-  trace:
-    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-    ac_gaps: []
-
-nfr_validation:
-  security:
-    status: PASS
-    notes: 'OAuth implementation is sound and now fully covered by automated tests.'
-  performance:
-    status: PASS
-    notes: 'Token caching verified, and validation timeout is handled.'
-  reliability:
-    status: PASS
-    notes: 'Error handling for various token states (valid, invalid, expired) is tested.'
-  maintainability:
-    status: PASS
-    notes: 'Test suite has been significantly refactored for better isolation and maintainability.'
+top_issues:
+  - id: "TEST-001"
+    severity: high
+    finding: "The OAuth2 JWT/JWKS security feature has zero effective test coverage."
+    suggested_action: "Fix the new failing tests in `tests/unit/test_oauth_middleware.py` and `tests/integration/test_oauth_flow.py`."
+  - id: "TEST-002"
+    severity: medium
+    finding: "Enabling authentication has broken multiple existing integration tests (e.g., youtube_api, server_validation)."
+    suggested_action: "Update affected tests to bypass authentication using the `bypass_oauth_for_most_tests` fixture."
+  - id: "TEST-003"
+    severity: medium
+    finding: "The test environment was misconfigured, missing `fastapi` and `python-jose` dependencies."
+    suggested_action: "This has been remediated by adding the dependencies to `requirements.txt`, but indicates a potential gap in environment setup processes."
 
 recommendations:
-  immediate: []
-  future: []
+  immediate:
+    - action: "Fix the `binascii.Error` in new OAuth tests by providing a valid, base64url-encoded mock RSA key."
+      refs: ["tests/unit/test_oauth_middleware.py"]
+    - action: "Fix test isolation issues where tests are not being correctly protected by the real middleware."
+      refs: ["tests/unit/test_oauth_middleware.py"]
+    - action: "Apply the `@pytest.mark.usefixtures(\"bypass_oauth_for_most_tests\")` marker to all non-auth integration tests to get them passing again."
+      refs: ["tests/integration/test_youtube_api.py", "tests/unit/test_server_validation.py"]
+  future:
+    - action: "Review the test fixture strategy to simplify isolation and reduce reliance on global mocks."
+      refs: ["tests/conftest.py"]
+
+nfr_validation:
+  security: { status: FAIL, notes: "Authentication mechanism is untested." }
+  performance: { status: PASS, notes: "Caching is implemented, but its effectiveness cannot be verified until tests are fixed." }
+  reliability: { status: FAIL, notes: "Test failures on invalid JWT data suggest potential unhandled error conditions." }
+  maintainability: { status: CONCERNS, notes: "The test suite is brittle and has shown a lack of resilience to changes." }
