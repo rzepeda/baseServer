@@ -16,11 +16,8 @@ def pytest_configure(config):
     """
     Sets dummy environment variables and registers tools required for tests.
     """
-    os.environ["OAUTH_PROVIDER_URL"] = "https://test.oauth.provider"
-    os.environ["OAUTH_CLIENT_ID"] = "test_client_id"
-    os.environ["OAUTH_CLIENT_SECRET"] = "test_client_secret"
-    os.environ["OAUTH_SCOPES"] = "read:transcripts"
-    os.environ["OAUTH_VALIDATION_ENDPOINT"] = "https://test.oauth.provider/validate"
+    from dotenv import load_dotenv
+    load_dotenv()
 
     # Register tools for the test session
     register_all_tools()

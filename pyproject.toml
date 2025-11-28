@@ -98,6 +98,9 @@ addopts = "-ra -q --strict-markers --cov=src --cov-report=term-missing"
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+markers = [
+    "real_oauth: marks tests that interact with a real OAuth provider"
+]
 
 [tool.coverage.run]
 source = ["src"]

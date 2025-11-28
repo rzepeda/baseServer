@@ -2,9 +2,6 @@
 
 import json
 
-from starlette.requests import Request
-from starlette.responses import Response
-
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -74,25 +71,27 @@ class ClaudeAIMCPAdapter:
                                     # Validate it's valid JSON
                                     json.loads(json_str)
 
-                                    logger.debug(
-                                        "Unwrapped SSE to pure JSON", path=path
-                                    )
+                                    logger.debug("Unwrapped SSE to pure JSON", path=path)
 
                                     # Send pure JSON response
                                     json_bytes = json_str.encode("utf-8")
-                                    await send({
-                                        "type": "http.response.start",
-                                        "status": status_code,
-                                        "headers": [
-                                            [b"content-type", b"application/json"],
-                                            [b"content-length", str(len(json_bytes)).encode()],
-                                        ],
-                                    })
-                                    await send({
-                                        "type": "http.response.body",
-                                        "body": json_bytes,
-                                        "more_body": False,
-                                    })
+                                    await send(
+                                        {
+                                            "type": "http.response.start",
+                                            "status": status_code,
+                                            "headers": [
+                                                [b"content-type", b"application/json"],
+                                                [b"content-length", str(len(json_bytes)).encode()],
+                                            ],
+                                        }
+                                    )
+                                    await send(
+                                        {
+                                            "type": "http.response.body",
+                                            "body": json_bytes,
+                                            "more_body": False,
+                                        }
+                                    )
                                     return
                     except Exception as e:
                         logger.error(
@@ -102,15 +101,19 @@ class ClaudeAIMCPAdapter:
                         )
 
                     # If unwrapping failed, send original response
-                    await send({
-                        "type": "http.response.start",
-                        "status": status_code,
-                        "headers": response_headers,
-                    })
-                    await send({
-                        "type": "http.response.body",
-                        "body": full_body,
-                        "more_body": False,
-                    })
+                    await send(
+                        {
+                            "type": "http.response.start",
+                            "status": status_code,
+                            "headers": response_headers,
+                        }
+                    )
+                    await send(
+                        {
+                            "type": "http.response.body",
+                            "body": full_body,
+                            "more_body": False,
+                        }
+                    )
 
         await self.app(scope, receive, send_wrapper)

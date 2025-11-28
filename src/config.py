@@ -43,7 +43,8 @@ class Config(BaseSettings):
         default=True, description="Enable/disable OAuth middleware for local development"
     )
     use_sse: bool = Field(
-        default=False, description="Enable/disable SSE mode for MCP server (use stateless HTTP if False)"
+        default=False,
+        description="Enable/disable SSE mode for MCP server (use stateless HTTP if False)",
     )
 
     # OAuth Configuration for Middleware
@@ -55,6 +56,10 @@ class Config(BaseSettings):
     oauth_token_cache_ttl: int = Field(
         default=60, description="OAuth token cache TTL in seconds", ge=0
     )
+
+    # Keycloak Configuration (used for discovery and JWT validation)
+    keycloak_url: str = Field(..., description="Keycloak base URL (e.g., https://auth.example.com)")
+    keycloak_realm: str = Field(..., description="Keycloak realm name (e.g., myrealm)")
 
     @property
     def oauth_config(self) -> OAuthConfig:

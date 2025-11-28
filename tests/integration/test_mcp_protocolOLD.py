@@ -1,4 +1,3 @@
-
 import asyncio
 import json
 import multiprocessing
@@ -14,6 +13,8 @@ from starlette.routing import Mount
 from src.config import get_config
 from src.mcp_server import app as mcp_app
 from src.server import app as rest_api_app
+
+pytestmark = pytest.mark.usefixtures("bypass_oauth_for_most_tests")
 
 
 # Use a different port for testing to avoid conflicts

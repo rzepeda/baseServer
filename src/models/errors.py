@@ -1,7 +1,7 @@
 """Error handling data models."""
 
-from typing import Any
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -43,7 +43,9 @@ class ErrorDetail(BaseModel):
 class MCPError(Exception):
     """Base exception for MCP server errors."""
 
-    def __init__(self, code: ErrorCode, message: str, details: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, code: ErrorCode, message: str, details: dict[str, Any] | None = None
+    ) -> None:
         self.code = code
         self.message = message
         self.details = details

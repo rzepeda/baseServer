@@ -1,22 +1,26 @@
 import hashlib
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
+from functools import lru_cache
+from typing import Any
 
 import httpx
+from authlib.jose import JoseError, JsonWebKey, jwt
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
 from src.config import get_config
-from src.models.auth import AuthContext, OAuthConfig
+from src.models.auth import AuthContext
 from src.utils.context import auth_context_var
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 # Constants
-OAUTH_VALIDATION_TIMEOUT_MS = 500
+OAUTH_VALIDATION_TIMEOUT_MS = 1000  # Increased timeout for network requests
+JWKS_CACHE_TTL = 3600  # Cache JWKS for 1 hour
 
 
 class OAuthError(Exception):
@@ -29,88 +33,87 @@ class OAuthError(Exception):
         super().__init__(f"{error}: {description}")
 
 
-async def validate_token_with_provider(
-    token: str, token_hash: str, oauth_config: OAuthConfig, client: httpx.AsyncClient
+@lru_cache(maxsize=128)
+def _get_cached_jwks(jwks_uri: str) -> dict[str, any]:
+    """
+    Fetch and cache JWKS from the provider.
+
+    Uses lru_cache to avoid repeated fetches to the JWKS endpoint.
+    The cache is based on the jwks_uri.
+    """
+    logger.info("oauth_jwks_fetching", jwks_uri=jwks_uri)
+    try:
+        response = httpx.get(jwks_uri, timeout=5.0)
+        response.raise_for_status()
+        jwks_data = response.json()
+        logger.info(
+            "oauth_jwks_fetch_success", jwks_uri=jwks_uri, key_count=len(jwks_data.get("keys", []))
+        )
+        return jwks_data
+    except httpx.RequestError as e:
+        logger.error("oauth_jwks_fetch_failed", jwks_uri=jwks_uri, error=str(e))
+        raise OAuthError("server_error", f"Failed to fetch JWKS: {e}", 503) from e
+
+
+async def validate_token_with_authlib(
+    token: str, token_hash: str, issuer: str, jwks_uri: str
 ) -> AuthContext:
-    """Validates the token with the OAuth provider. Standalone for testability."""
+    """Validates the token using authlib with JWKS."""
     start_time = time.monotonic()
-    headers = {"Authorization": f"Bearer {token}"}
 
     try:
-        response = await client.post(
-            str(oauth_config.validation_endpoint),
-            headers=headers,
-            timeout=OAUTH_VALIDATION_TIMEOUT_MS / 1000.0,
-        )
-        response.raise_for_status()
-        validation_data = response.json()
-    except httpx.TimeoutException as e:
-        logger.error("oauth_provider_timeout", exc_info=e, token_hash=token_hash[:8])
-        raise OAuthError("server_error", "OAuth provider connection timed out", 504) from e
-    except httpx.HTTPStatusError as e:
-        error_msg = f"OAuth provider returned {e.response.status_code}."
-        logger.warning(
-            "oauth_provider_validation_failed",
-            token_hash=token_hash[:8],
-            status_code=e.response.status_code,
-            response_body=e.response.text,
-        )
-        try:
-            provider_error = e.response.json()
-            error = provider_error.get("error", "invalid_token")
-            description = provider_error.get("error_description", error_msg)
-        except ValueError:
-            error = "invalid_token"
-            description = error_msg
+        # Fetch JWKS (cached)
+        jwks_data = _get_cached_jwks(jwks_uri)
 
-        status_code = e.response.status_code
-        if status_code not in {401, 403}:
-            status_code = 500
-            error = "server_error"
-            description = "OAuth provider error"
-        raise OAuthError(error, description, status_code) from e
+        # Decode and validate the JWT with claims validation
+        # authlib will automatically select the correct key from the JWKS
+        claims = jwt.decode(
+            token,
+            JsonWebKey.import_key_set(jwks_data),
+            claims_options={
+                "iss": {"essential": True, "value": issuer},
+                "exp": {"essential": True},
+                "iat": {"essential": True},
+                "nbf": {"essential": False},
+            },
+        )
+
+        # Claims are automatically validated during decode with claims_options
+        # Additional manual validation if needed
+        claims.validate()
+
+    except JoseError as e:
+        logger.warning("oauth_jwt_validation_failed", token_hash=token_hash[:8], error=str(e))
+        raise OAuthError("invalid_token", f"Token validation failed: {e}", 401) from e
     except Exception as e:
-        logger.error("oauth_provider_request_error", exc_info=e, token_hash=token_hash[:8])
-        raise OAuthError("server_error", "Failed to connect to OAuth provider", 500) from e
+        logger.error("oauth_jwt_unexpected_error", exc_info=e, token_hash=token_hash[:8])
+        raise OAuthError(
+            "server_error", "An unexpected error occurred during token validation", 500
+        ) from e
 
-    is_active = validation_data.get("active", True)
-    if not is_active:
-        raise OAuthError("invalid_token", "Token is inactive", 401)
-
-    scopes = validation_data.get("scope", "").split()
-    client_id = validation_data.get("client_id")
-    expires_at_timestamp = validation_data.get("exp")
-
-    expires_at = None
-    if expires_at_timestamp:
-        try:
-            expires_at = datetime.fromtimestamp(expires_at_timestamp, tz=UTC)
-        except Exception:
-            logger.warning(
-                "oauth_invalid_exp_timestamp", exp=expires_at_timestamp, token_hash=token_hash[:8]
-            )
+    expires_at = datetime.fromtimestamp(claims["exp"], tz=UTC)
 
     auth_context = AuthContext(
         is_valid=True,
         token_hash=token_hash,
-        scopes=scopes,
+        scopes=claims.get("scope", "").split(),
         expires_at=expires_at,
-        client_id=client_id,
+        client_id=claims.get("cid") or claims.get("client_id"),
+        user_id=claims.get("sub"),
     )
 
     validation_duration_ms = (time.monotonic() - start_time) * 1000
     logger.info(
         "oauth_token_validated",
         token_hash=token_hash[:8],
-        client_id=client_id,
-        scopes=scopes,
+        client_id=auth_context.client_id,
+        user_id=auth_context.user_id,
         duration_ms=round(validation_duration_ms, 2),
     )
 
     if validation_duration_ms > OAUTH_VALIDATION_TIMEOUT_MS:
         logger.warning(
             "oauth_validation_performance_alert",
-            token_hash=token_hash[:8],
             duration_ms=round(validation_duration_ms, 2),
             threshold_ms=OAUTH_VALIDATION_TIMEOUT_MS,
         )
@@ -127,72 +130,27 @@ def _build_oauth_error_response_json(
     return JSONResponse(content=content, status_code=status_code, headers=headers)
 
 
-class TokenCache:
-    """Simple in-memory cache for OAuth tokens with TTL."""
-
-    def __init__(self, ttl_seconds: int) -> None:
-        self.ttl_seconds = ttl_seconds
-        self._cache: dict[str, tuple[AuthContext, datetime]] = {}
-
-    def get(self, token_hash: str) -> AuthContext | None:
-        """Retrieves a cached AuthContext if valid and not expired."""
-        entry = self._cache.get(token_hash)
-        if entry:
-            auth_context, expiration_time = entry
-            if expiration_time > datetime.now(UTC):
-                logger.debug(
-                    "token_cache_hit", token_hash=token_hash[:8], expires_at=expiration_time
-                )
-                return auth_context
-            else:
-                logger.debug(
-                    "token_cache_expired", token_hash=token_hash[:8], expires_at=expiration_time
-                )
-                self.delete(token_hash)
-        logger.debug("token_cache_miss", token_hash=token_hash[:8])
-        return None
-
-    def set(self, token_hash: str, auth_context: AuthContext):
-        """Caches an AuthContext with a calculated expiration time."""
-        if self.ttl_seconds <= 0:
-            return
-        expiration_time = datetime.now(UTC) + timedelta(seconds=self.ttl_seconds)
-        self._cache[token_hash] = (auth_context, expiration_time)
-        logger.debug(
-            "token_cache_set",
-            token_hash=token_hash[:8],
-            expires_at=expiration_time,
-            ttl=self.ttl_seconds,
-        )
-
-    def delete(self, token_hash: str):
-        """Deletes an entry from the cache."""
-        if token_hash in self._cache:
-            del self._cache[token_hash]
-            logger.debug("token_cache_deleted", token_hash=token_hash[:8])
-
-
 class OAuthMiddleware(BaseHTTPMiddleware):
     """
-    FastAPI middleware for OAuth 2.0 bearer token validation.
-    Protects endpoints by validating tokens with an OAuth provider.
+    FastAPI middleware for OAuth 2.0 bearer token validation using JWKS.
     """
 
     def __init__(self, app: ASGIApp, exclude_paths: list[str] | None = None) -> None:
         super().__init__(app)
         self.exclude_paths = set(exclude_paths or [])
         self.config = get_config()
-        self.oauth_config = self.config.oauth_config
-        self.token_cache = TokenCache(self.config.oauth_token_cache_ttl)
 
-        if not self.config.oauth_token_cache_ttl:
-            logger.warning("oauth_cache_disabled", reason="OAUTH_TOKEN_CACHE_TTL is 0")
+        if not self.config.keycloak_url or not self.config.keycloak_realm:
+            raise ValueError("KEYCLOAK_URL and KEYCLOAK_REALM must be configured.")
+
+        self.issuer = f"{self.config.keycloak_url.rstrip('/')}/realms/{self.config.keycloak_realm}"
+        # This is a temporary measure. In a real scenario, this would be discovered.
+        self.jwks_uri = f"{self.issuer}/protocol/openid-connect/certs"
 
         logger.info(
             "oauth_middleware_initialized",
-            provider_url=self.oauth_config.provider_url,
-            validation_endpoint=self.oauth_config.validation_endpoint,
-            scopes=self.oauth_config.scopes,
+            issuer=self.issuer,
+            jwks_uri=self.jwks_uri,
             exclude_paths=list(self.exclude_paths),
         )
 
@@ -217,25 +175,12 @@ class OAuthMiddleware(BaseHTTPMiddleware):
         bearer_token = authorization_header[7:]
         token_hash = hashlib.sha256(bearer_token.encode()).hexdigest()
 
-        # Try fetching from cache first
-        auth_context = self.token_cache.get(token_hash)
-
-        if not auth_context:
-            try:
-                async with httpx.AsyncClient() as client:
-                    auth_context = await validate_token_with_provider(
-                        bearer_token, token_hash, self.oauth_config, client
-                    )
-                self.token_cache.set(token_hash, auth_context)
-            except OAuthError as e:
-                return _build_oauth_error_response_json(e.error, e.description, e.status_code)
-            except Exception as e:
-                logger.error(
-                    "oauth_validation_unhandled_error", exc_info=e, token_hash=token_hash[:8]
-                )
-                return _build_oauth_error_response_json(
-                    "server_error", "An unexpected error occurred during token validation", 500
-                )
+        try:
+            auth_context = await validate_token_with_authlib(
+                bearer_token, token_hash, self.issuer, self.jwks_uri
+            )
+        except OAuthError as e:
+            return _build_oauth_error_response_json(e.error, e.description, e.status_code)
 
         # Attach auth context and proceed
         request.state.auth_context = auth_context
@@ -246,9 +191,7 @@ class OAuthMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains; preload"
-        )
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         return response

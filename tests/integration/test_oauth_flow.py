@@ -31,6 +31,8 @@ def isolated_mcp_app_client(monkeypatch):
     monkeypatch.setenv("OAUTH_SCOPES", "read:transcripts")
     monkeypatch.setenv("OAUTH_VALIDATION_ENDPOINT", "https://test.oauth.provider/validate")
     monkeypatch.setenv("OAUTH_TOKEN_CACHE_TTL", "60")
+    monkeypatch.setenv("KEYCLOAK_URL", "https://auth.test.com")
+    monkeypatch.setenv("KEYCLOAK_REALM", "test-realm")
 
     # Create a fresh app instance and add routes and middleware manually
     app = FastAPI(lifespan=lifespan)

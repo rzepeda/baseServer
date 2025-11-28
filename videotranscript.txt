@@ -1,0 +1,196 @@
+Introduction & Repository Overview
+Hello, I created an MCP connector with O
+authentication and this video I want to
+show you how you can use uh this
+application. I will uh provide the link
+to the repository in the description for
+this video. Uh first of all, there is a
+Redmi file where you can find the
+structure of the application, how to
+install it, how to use it. Uh there is
+also a file called security guide where
+you can see what kind of security is
+implemented in this repository and in
+this video I will show you how you can
+run this application how you can debug
+it uh how to set up environment
+parameters. Let's start. uh so first of
+AWS Cognito Setup
+all uh because it's it uses o
+authentication it needs uh a server to
+which it will be authenticated
+and I'm using AWS cognitive uh so first
+you need uh to create uh a user pool you
+can use default configurations here like
+choose traditional web application you
+can choose for example username and then
+create user directory. Then after you
+created it, you need to create uh Ape
+client. Again, you can use here
+everything by by default like this. And
+after it you will have uh user pool and
+a client. Uh the next step you need to
+fill the environment parameters in the
+end file. Uh first of all, cognitive
+user pool. What is it? You you can take
+it from um
+from overview here. You see here user
+pool. You just copy it and paste it into
+the end file over here. Then you need
+client ID and client secret. Client ID
+and client secret you can take from a
+Environment Configuration (.env file)
+client.
+You go here and here you can see client
+ID and you can see client secret. So you
+provide it here. Then you need cognitive
+region.
+uh cognitive region you can take from
+here. You see US- East one. So you put
+it here and then you need cognitive
+domain. Uh to get cognitive domain you
+can go to domain over here and then you
+you you need to take only this part.
+Uh so that's I put it here. Then you
+need a cognitive scopes.
+uh you take it from upper peg lines
+here and then I think it's somewhere
+here. Yeah, open connection mail and
+open ID and that's how I put it here.
+Open ID email. uh then course allowed
+regions it's because this one is
+implementing course and I
+uh let it uh I let this application to
+be used by cloud and by Julius then
+environment development and production
+and you need server base URL because I'm
+running it locally but then I'm going to
+show you how to connect it to cloud
+desktop I need HTTPS uh that's why
+I created
+uh http with this comment you can find
+it in the readmi file so that's the
+address which I provided over here
+so that's the address over here uh and
+then log level info and lo sensitive
+data false if you if you want to debug
+it like put log sensitive data true you
+will you will have more information so
+these ones are done. Next, what you do,
+you
+execute it. So, you execute the main uh
+you run the main file over here, this
+Running the Python Application
+one. And now you can see that uh the
+startup completed and we have available
+tools echo and add. If you want to add
+new tools, you can read it in the readmi
+file. It's written there how you can add
+new tools. Okay. Uh now let's first try
+Testing with MCP Inspector
+to
+debug it with MCP inspector. The next
+thing what you have to do you you need
+uh to run MCP inspector. I made a video
+about it. So you can run it with this
+comment. Again I put u the command into
+the readmi file. So now it's running.
+And then I take uh this link
+and execute it in the browser. for
+example here.
+Um then I choosing streamable HTTP and
+here I need to provide
+uh my
+address over here and the end point is
+called MCP. Uh the next step I open our
+our settings and I'm starting to test
+it.
+Uh first I do meta metadata discovery.
+Let's see. I can see that it returns
+this data. Uh then I can I do client
+registration that's basically the re
+register inpoint called. So this is uh
+described this path is described in MCP
+specification. Uh so it's done. Uh next
+step it tells me to execute uh this
+link. By the way, about the links, what
+we also need to configure in our cloud,
+we need to configure allowed callbacks
+because I will be connecting to cloud. I
+I edit it uh and also I added um
+redirect URL of my MCP inspector because
+I'm I'm going to use it and and also I
+added sign out URL over here. So it's
+also important to add it otherwise
+authentication will not work. Okay. So
+Claude Desktop Integration
+I'm copying
+I actually don't have to copy it. I can
+just open it here. I need to provide my
+email
+my user because I added also a user over
+here. If you go to users you will see
+that there is my user over here. Uh so
+I'm trying to sign in under this user.
+I'm entering the password
+and now I get
+uh the code here. I go back to my MCP
+inspector. It's over here.
+I put the code and push continue. Now it
+it uh received the token. The token is
+received and uh this one is also
+received. So our server is working
+correctly. We also can see at all calls
+which is made. You can see that uh it
+made calls to
+uh to uh O protected resource or O
+protected resource. it was options get
+uh then it made the call to the register
+endpoint
+uh so that's actually how this process
+is described in the MCP specification so
+that's this uh application just follow
+this process okay now let's try to
+connect it to clo to clot over here
+uh let's go to manage connectors
+and and now I push add custom connector.
+Here I can take any name and then I need
+to provide um
+the URL to this MCP
+endpoint. Now I need to wait until it's
+registered. By the way, we can have a
+look here. You see here what we've got.
+It called postmcp and we got not
+authorized because we expect uh just wt
+token from our cognto but since we
+haven't connected yet to cognto because
+I connected only mcp inspector when I
+was testing but I haven't connected in
+cloud yet that's why it said that it's
+unauthorized and now here we are waiting
+until we have here a button called
+connect here it is and we push connect
+And as you can see, I'm redirected again
+to the same screen. I provided my
+Testing the Connected Tools
+email. And now I'm going to provide my
+password.
+And then it asks me if it can open
+uh the code again. And now I should be
+able to see you see I can see my test
+connector which is successfully
+connected. And I can see two tools here.
+So let's try to use one of them. Add two
+and five.
+Hello.
+Yeah, it it asks me that if it can use
+the add function from my test connector.
+And actually I can see it here. You see
+it used it. It defined the user. So that
+the user from cognitive because right
+now we have a token because I connected
+it in cloud desktop and then it it used
+the add tool and uh the result is seven.
+So this desk um cloud desktop can work
+with our application. That's all for the
+video. Thank you for watching. by

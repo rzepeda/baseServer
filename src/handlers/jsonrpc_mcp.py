@@ -35,7 +35,7 @@ async def jsonrpc_mcp_handler(rpc_request: JSONRPCRequest, request: Request):
     params = rpc_request.params
     request_id = rpc_request.id
 
-    logger.info(f"JSON-RPC request", method=method, id=request_id)
+    logger.info("JSON-RPC request", method=method, id=request_id)
 
     try:
         # Get tool registry
@@ -43,32 +43,36 @@ async def jsonrpc_mcp_handler(rpc_request: JSONRPCRequest, request: Request):
 
         if method == "initialize":
             # MCP initialize handshake
-            return JSONResponse({
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {
-                        "experimental": {},
-                        "prompts": {"listChanged": False},
-                        "resources": {"subscribe": False, "listChanged": False},
-                        "tools": {"listChanged": False},
+            return JSONResponse(
+                {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {
+                            "experimental": {},
+                            "prompts": {"listChanged": False},
+                            "resources": {"subscribe": False, "listChanged": False},
+                            "tools": {"listChanged": False},
+                        },
+                        "serverInfo": {
+                            "name": "youtube-transcript-server",
+                            "version": "1.22.0",
+                        },
                     },
-                    "serverInfo": {
-                        "name": "youtube-transcript-server",
-                        "version": "1.22.0",
-                    },
-                },
-            })
+                }
+            )
 
         elif method == "tools/list":
             # List available tools
             tools_schema = registry.generate_mcp_schema()
-            return JSONResponse({
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {"tools": [tool.model_dump() for tool in tools_schema]},
-            })
+            return JSONResponse(
+                {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {"tools": [tool.model_dump() for tool in tools_schema]},
+                }
+            )
 
         elif method == "tools/call":
             # Call a tool
@@ -126,14 +130,16 @@ async def jsonrpc_mcp_handler(rpc_request: JSONRPCRequest, request: Request):
             else:
                 content = [{"type": "text", "text": str(result)}]
 
-            return JSONResponse({
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {
-                    "content": content,
-                    "isError": False,
-                },
-            })
+            return JSONResponse(
+                {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "content": content,
+                        "isError": False,
+                    },
+                }
+            )
 
         else:
             # Unknown method
