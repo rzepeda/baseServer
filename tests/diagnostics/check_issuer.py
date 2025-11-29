@@ -1,8 +1,10 @@
-import os
-import httpx
-import logging
 import json
+import logging
+import os
+
+import httpx
 from dotenv import load_dotenv
+
 
 def setup_logger():
     """Sets up the logger to output to both console and a file."""
@@ -16,18 +18,19 @@ def setup_logger():
     # File handler
     file_handler = logging.FileHandler("tests/diagnostics/logs/diagnostics.log")
     file_handler.setLevel(logging.INFO)
-    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file_handler.setFormatter(file_formatter)
     logger.addHandler(file_handler)
 
     # Console handler
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.INFO)
-    stream_formatter = logging.Formatter('%(message)s')
+    stream_formatter = logging.Formatter("%(message)s")
     stream_handler.setFormatter(stream_formatter)
     logger.addHandler(stream_handler)
 
     return logger
+
 
 def check_issuer():
     """
@@ -64,6 +67,7 @@ def check_issuer():
 
     except httpx.RequestError as e:
         logger.error(f"Error fetching discovery document: {e}")
+
 
 if __name__ == "__main__":
     check_issuer()

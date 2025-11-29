@@ -1,9 +1,9 @@
-
-import os
-import httpx
 import logging
-import json
+import os
+
+import httpx
 from dotenv import load_dotenv
+
 
 def setup_logger():
     """Sets up the logger to output to both console and a file."""
@@ -15,20 +15,21 @@ def setup_logger():
         logger.handlers.clear()
 
     # File handler
-    file_handler = logging.FileHandler("tests/diagnostics/logs/diagnostics.log", mode='a')
+    file_handler = logging.FileHandler("tests/diagnostics/logs/diagnostics.log", mode="a")
     file_handler.setLevel(logging.INFO)
-    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file_handler.setFormatter(file_formatter)
     logger.addHandler(file_handler)
 
     # Console handler
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.INFO)
-    stream_formatter = logging.Formatter('%(message)s')
+    stream_formatter = logging.Formatter("%(message)s")
     stream_handler.setFormatter(stream_formatter)
     logger.addHandler(stream_handler)
 
     return logger
+
 
 def check_client():
     """
@@ -44,7 +45,9 @@ def check_client():
 
     if not all([client_id, client_secret, validation_endpoint, provider_url]):
         logger.error("Error: Missing one or more required OAuth variables in .env file.")
-        logger.error("Required variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, OAUTH_VALIDATION_ENDPOINT, OAUTH_PROVIDER_URL")
+        logger.error(
+            "Required variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, OAUTH_VALIDATION_ENDPOINT, OAUTH_PROVIDER_URL"
+        )
         return
 
     logger.info("--- Starting OAuth Client Check ---")
@@ -68,7 +71,9 @@ def check_client():
 
             validation_endpoint = introspection_endpoint or userinfo_endpoint
             if not validation_endpoint:
-                logger.error("Error: No 'introspection_endpoint' or 'userinfo_endpoint' found in discovery document.")
+                logger.error(
+                    "Error: No 'introspection_endpoint' or 'userinfo_endpoint' found in discovery document."
+                )
                 return
             logger.info(f"Using validation endpoint: {validation_endpoint}")
 
@@ -91,15 +96,17 @@ def check_client():
 
             # 3. Validate the token
             logger.info(f"Validating access token at: {validation_endpoint}")
-            
+
             validation_response = None
             if validation_endpoint == introspection_endpoint:
                 # Introspection endpoint usually requires a POST with the token
                 validation_payload = {"token": access_token}
                 headers = {"Content-Type": "application/x-www-form-urlencoded"}
                 auth = (client_id, client_secret)
-                validation_response = client.post(validation_endpoint, data=validation_payload, headers=headers, auth=auth)
-            else: # userinfo_endpoint
+                validation_response = client.post(
+                    validation_endpoint, data=validation_payload, headers=headers, auth=auth
+                )
+            else:  # userinfo_endpoint
                 headers = {"Authorization": f"Bearer {access_token}"}
                 validation_response = client.get(validation_endpoint, headers=headers)
 
@@ -107,9 +114,10 @@ def check_client():
                 logger.info("Token validation successful.")
                 logger.info(f"Validation response: {validation_response.json()}")
             else:
-                logger.error(f"Token validation failed with status code: {validation_response.status_code}")
+                logger.error(
+                    f"Token validation failed with status code: {validation_response.status_code}"
+                )
                 logger.error(f"Validation response: {validation_response.text}")
-
 
     except httpx.RequestError as e:
         logger.error(f"An HTTP error occurred: {e}")

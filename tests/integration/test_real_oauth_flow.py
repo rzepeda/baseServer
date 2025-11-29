@@ -1,14 +1,14 @@
-
 import os
+
 import httpx
 import pytest
 from dotenv import load_dotenv
+from fastapi.testclient import TestClient  # Moved to top
+
+from src.server import app  # Use the REST API server app # Moved to top
 
 # SKIP: Manual integration test for real OAuth with Keycloak - not for automated testing
 pytestmark = pytest.mark.skip(reason="Manual integration test - requires real Keycloak instance")
-from fastapi.testclient import TestClient
-
-from src.server import app  # Use the REST API server app
 
 # Load environment variables from .env file
 load_dotenv()
@@ -25,7 +25,9 @@ def real_access_token():
     client_secret = os.getenv("OAUTH_CLIENT_SECRET")
 
     if not all([provider_url, client_id, client_secret]):
-        pytest.fail("Missing required OAuth environment variables in .env file. Please ensure OAUTH_PROVIDER_URL, OAUTH_CLIENT_ID, and OAUTH_CLIENT_SECRET are set.")
+        pytest.fail(
+            "Missing required OAuth environment variables in .env file. Please ensure OAUTH_PROVIDER_URL, OAUTH_CLIENT_ID, and OAUTH_CLIENT_SECRET are set."
+        )
 
     try:
         with httpx.Client() as client:
@@ -47,6 +49,7 @@ def real_access_token():
     except (httpx.RequestError, KeyError) as e:
         pytest.fail(f"Failed to get real access token: {e}")
 
+
 @pytest.fixture(scope="module")
 def client():
     """Test client that handles lifespan events."""
@@ -62,7 +65,7 @@ def test_middleware_with_real_token(client, real_access_token):
     # Test with a valid token
     headers = {"Authorization": f"Bearer {real_access_token}"}
     response = client.get("/tools/list", headers=headers)
-    
+
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 

@@ -1,15 +1,25 @@
 """Integration test for Authorization Code Flow with OAuth Discovery."""
 
-import pytest
 from unittest.mock import AsyncMock, patch
-from starlette.testclient import TestClient
+
 import httpx
+import pytest
+from starlette.testclient import TestClient
 
-from src.server import app
 from src.config import get_config
+from src.handlers.oauth_discovery import clear_oauth_discovery_cache
+from src.server import app
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
+def clear_discovery_cache():
+    """Fixture to clear the OAuth discovery cache before each test."""
+    clear_oauth_discovery_cache()
+    yield
+    clear_oauth_discovery_cache()  # Clear after test too
+
+
+@pytest.fixture
 def setup_env(monkeypatch):
     """Setup environment variables for testing."""
     get_config.cache_clear()
@@ -41,6 +51,7 @@ def mock_keycloak_discovery():
     }
 
 
+@pytest.mark.usefixtures("setup_env", "clear_discovery_cache")
 @pytest.mark.asyncio
 async def test_discovery_endpoint_returns_metadata(mock_keycloak_discovery):
     """Test that discovery endpoint successfully returns OAuth metadata."""
@@ -65,10 +76,14 @@ async def test_discovery_endpoint_returns_metadata(mock_keycloak_discovery):
             data = response.json()
             assert data["issuer"] == "https://auth.test.com/realms/test-realm"
             assert "authorization_endpoint" in data
-            assert data["authorization_endpoint"] == "https://auth.test.com/realms/test-realm/protocol/openid-connect/auth"
+            assert (
+                data["authorization_endpoint"]
+                == "https://auth.test.com/realms/test-realm/protocol/openid-connect/auth"
+            )
             assert "code_challenge_methods_supported" in data
 
 
+@pytest.mark.usefixtures("setup_env", "clear_discovery_cache")
 @pytest.mark.asyncio
 async def test_discovery_endpoint_accessible_without_auth():
     """Test that discovery endpoint is accessible without authentication."""
@@ -95,6 +110,7 @@ async def test_discovery_endpoint_accessible_without_auth():
             assert response.status_code == 200
 
 
+@pytest.mark.usefixtures("setup_env", "clear_discovery_cache")
 @pytest.mark.asyncio
 async def test_discovery_endpoint_handles_keycloak_unavailable():
     """Test error handling when Keycloak is unavailable."""

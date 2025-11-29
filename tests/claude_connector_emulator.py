@@ -1,9 +1,9 @@
+import logging
+from urllib.parse import urlparse, urlunparse
 
 import httpx
-import logging
-import json
 from dotenv import dotenv_values
-from urllib.parse import urlparse, urlunparse
+
 
 def setup_logger():
     """Sets up a logger for diagnostic output."""
@@ -12,11 +12,12 @@ def setup_logger():
 
     if not logger.handlers:
         stream_handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         stream_handler.setFormatter(formatter)
         logger.addHandler(stream_handler)
 
     return logger
+
 
 def run_emulator():
     """
@@ -25,11 +26,11 @@ def run_emulator():
     """
     logger = setup_logger()
     logger.info("--- Starting Claude OAuth Emulator (MCP-compliant) ---")
-    
+
     # 1. Load Configuration - Note: OAUTH_PROVIDER_URL is NOT used by the emulator anymore.
     logger.info("Loading client configuration directly from .env file...")
     config = dotenv_values(".env")
-    
+
     client_id = config.get("OAUTH_CLIENT_ID")
     client_secret = config.get("OAUTH_CLIENT_SECRET")
     mcp_full_url = config.get("CLOUDFLARE_TUNNEL_URL")
@@ -47,7 +48,7 @@ def run_emulator():
         return
 
     parsed_url = urlparse(mcp_full_url)
-    base_server_url = urlunparse((parsed_url.scheme, parsed_url.netloc, '', '', '', ''))
+    base_server_url = urlunparse((parsed_url.scheme, parsed_url.netloc, "", "", "", ""))
 
     logger.info("--- Configuration Values Used by Emulator ---")
     logger.info(f"Base Server URL (from CLOUDFLARE_TUNNEL_URL): {base_server_url}")
@@ -74,26 +75,35 @@ def run_emulator():
         with httpx.Client() as client:
             discovery_endpoint = f"{base_server_url}/.well-known/oauth-authorization-server"
             logger.info(f"MCP Auth Discovery: Attempting to GET {discovery_endpoint}")
-            
+
             response = client.get(discovery_endpoint)
             response.raise_for_status()
-            
+
             metadata = response.json()
             logger.info("Full discovery document received: %s", metadata)
             token_endpoint = metadata.get("token_endpoint")
             authorization_endpoint = metadata.get("authorization_endpoint")
 
             if not token_endpoint:
-                logger.error("Fatal: Server metadata at %s is missing the 'token_endpoint' field.", discovery_endpoint)
+                logger.error(
+                    "Fatal: Server metadata at %s is missing the 'token_endpoint' field.",
+                    discovery_endpoint,
+                )
                 logger.info("--- Emulator Finished with Errors ---")
                 return
 
             if not authorization_endpoint:
-                logger.warning("Warning: Server metadata is missing 'authorization_endpoint' - required for authorization_code flow (Claude.ai)")
+                logger.warning(
+                    "Warning: Server metadata is missing 'authorization_endpoint' - required for authorization_code flow (Claude.ai)"
+                )
             else:
-                logger.info("MCP Auth Discovery: authorization_endpoint found: %s", authorization_endpoint)
+                logger.info(
+                    "MCP Auth Discovery: authorization_endpoint found: %s", authorization_endpoint
+                )
 
-            logger.info("MCP Auth Discovery: Successfully discovered token_endpoint: %s", token_endpoint)
+            logger.info(
+                "MCP Auth Discovery: Successfully discovered token_endpoint: %s", token_endpoint
+            )
 
     except httpx.HTTPStatusError as e:
         logger.error(f"Fatal: An HTTP error occurred during MCP auth discovery: {e}")
@@ -119,10 +129,12 @@ def run_emulator():
             access_token = token_response.json().get("access_token")
 
             if not access_token:
-                logger.error("Fatal: 'access_token' not found in the response from the token endpoint.")
+                logger.error(
+                    "Fatal: 'access_token' not found in the response from the token endpoint."
+                )
                 logger.info("--- Emulator Finished with Errors ---")
                 return
-            
+
             logger.info("Successfully obtained access token.")
 
     except Exception as e:
@@ -149,10 +161,13 @@ def run_emulator():
                     logger.error(f"Server response body: {response.text}")
 
         except httpx.RequestError as e:
-            logger.error(f"FAILURE: An HTTP error occurred while contacting the server at {base_server_url}.")
+            logger.error(
+                f"FAILURE: An HTTP error occurred while contacting the server at {base_server_url}."
+            )
             logger.error(f"Error: {e}")
 
     logger.info("--- Claude OAuth Emulator Finished ---")
+
 
 if __name__ == "__main__":
     run_emulator()

@@ -2,7 +2,7 @@ import hashlib
 import time
 from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Any
+from typing import Any, Optional, cast # Added cast
 
 import httpx
 from authlib.jose import JoseError, JsonWebKey, jwt
@@ -34,7 +34,7 @@ class OAuthError(Exception):
 
 
 @lru_cache(maxsize=128)
-def _get_cached_jwks(jwks_uri: str) -> dict[str, any]:
+def _get_cached_jwks(jwks_uri: str) -> dict[str, Any]: # Changed 'any' to 'Any'
     """
     Fetch and cache JWKS from the provider.
 
@@ -49,7 +49,7 @@ def _get_cached_jwks(jwks_uri: str) -> dict[str, any]:
         logger.info(
             "oauth_jwks_fetch_success", jwks_uri=jwks_uri, key_count=len(jwks_data.get("keys", []))
         )
-        return jwks_data
+        return cast(dict[str, Any], jwks_data)
     except httpx.RequestError as e:
         logger.error("oauth_jwks_fetch_failed", jwks_uri=jwks_uri, error=str(e))
         raise OAuthError("server_error", f"Failed to fetch JWKS: {e}", 503) from e
@@ -139,6 +139,7 @@ class OAuthMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.exclude_paths = set(exclude_paths or [])
         self.config = get_config()
+
 
         if not self.config.keycloak_url or not self.config.keycloak_realm:
             raise ValueError("KEYCLOAK_URL and KEYCLOAK_REALM must be configured.")

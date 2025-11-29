@@ -22,6 +22,7 @@ from src.handlers.health import health_check
 from src.handlers.oauth_discovery import router as oauth_router  # Import the new router
 from src.mcp_server import mcp_app
 from src.middleware.oauth import OAuthMiddleware
+from src.models.errors import ErrorCode, MCPError
 from src.models.mcp import MCPToolDefinition, ToolExecutionContext
 from src.registry.tool_registry import ToolRegistry
 from src.utils.logging import get_logger
@@ -124,14 +125,16 @@ async def list_tools(request: Request) -> list[MCPToolDefinition]:
 async def invoke_tool(request: Request) -> JSONResponse:
     """REST endpoint to invoke a tool directly."""
     registry: ToolRegistry = request.app.state.registry
-    correlation_id = str(uuid4())
+
+    request_body = await request.json()
+    tool_name = request_body.get("tool_name")
+    parameters = request_body.get("parameters", {})
+
+    # Prioritize correlation_id from request context, otherwise generate a new one
+    correlation_id = request_body.get("context", {}).get("correlation_id", str(uuid4()))
     bound_logger = logger.bind(correlation_id=correlation_id)
 
     try:
-        request_body = await request.json()
-        tool_name = request_body.get("tool_name")
-        parameters = request_body.get("parameters", {})
-
         if not tool_name:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "tool_name is required")
 
@@ -160,6 +163,31 @@ async def invoke_tool(request: Request) -> JSONResponse:
         return JSONResponse({"result": result})
     except HTTPException:
         raise
+    except MCPError as e:
+        bound_logger.warning(
+            "Tool execution failed with MCPError",
+            error_code=e.code.value,
+            error_message=e.message,
+            details=e.details,
+        )
+        status_code = (
+            status.HTTP_500_INTERNAL_SERVER_ERROR
+        )  # Default to 500 for unhandled MCP Errors
+        if e.code == ErrorCode.INVALID_URL:
+            status_code = status.HTTP_400_BAD_REQUEST
+        elif e.code == ErrorCode.TRANSCRIPT_NOT_AVAILABLE:
+            status_code = status.HTTP_404_NOT_FOUND
+        elif e.code == ErrorCode.TOOL_NOT_FOUND:
+            status_code = status.HTTP_404_NOT_FOUND
+        elif e.code == ErrorCode.UNAUTHORIZED:
+            status_code = status.HTTP_401_UNAUTHORIZED
+        elif e.code == ErrorCode.FORBIDDEN:
+            status_code = status.HTTP_403_FORBIDDEN
+
+        return JSONResponse(
+            {"error_code": e.code.value, "error": e.message, "details": e.details},
+            status_code=status_code,
+        )
     except Exception as e:
         bound_logger.error("Unhandled exception in invoke_tool", error=str(e), exc_info=True)
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Server Error") from e

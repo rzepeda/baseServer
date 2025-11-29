@@ -1,6 +1,8 @@
-"""Claude.ai compatible MCP adapter - pure JSON-RPC without SSE wrapping."""
-
 import json
+from collections.abc import MutableMapping # Added MutableMapping
+from typing import Any
+
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from src.utils.logging import get_logger
 
@@ -21,10 +23,10 @@ class ClaudeAIMCPAdapter:
     This adapter unwraps the SSE format and returns pure JSON for /mcp endpoint.
     """
 
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI interface."""
         if scope["type"] != "http":
             await self.app(scope, receive, send)
@@ -39,10 +41,10 @@ class ClaudeAIMCPAdapter:
         # Capture the response
         response_started = False
         status_code = 200
-        response_headers = []
-        body_parts = []
+        response_headers: list[tuple[bytes, bytes]] = []
+        body_parts: list[bytes] = []
 
-        async def send_wrapper(message):
+        async def send_wrapper(message: MutableMapping[str, Any]) -> None:
             nonlocal response_started, status_code, response_headers, body_parts
 
             if message["type"] == "http.response.start":

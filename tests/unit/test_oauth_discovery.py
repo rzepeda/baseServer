@@ -1,17 +1,19 @@
 """Unit tests for OAuth Discovery endpoint handler."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi import HTTPException
-import httpx
 
-from src.handlers.oauth_discovery import get_oauth_discovery_document, _cached_metadata
+import httpx
+import pytest
+from fastapi import HTTPException
+
+from src.handlers.oauth_discovery import get_oauth_discovery_document
 
 
 @pytest.fixture(autouse=True)
 def clear_cache():
     """Clear the global cache before each test."""
     import src.handlers.oauth_discovery as discovery_module
+
     discovery_module._cached_metadata = None
     yield
     discovery_module._cached_metadata = None
@@ -52,7 +54,10 @@ async def test_discovery_endpoint_success(mock_keycloak_metadata, mocker):
         result = await get_oauth_discovery_document()
 
     assert result["issuer"] == "https://auth.example.com/realms/myrealm"
-    assert result["authorization_endpoint"] == "https://auth.example.com/realms/myrealm/protocol/openid-connect/auth"
+    assert (
+        result["authorization_endpoint"]
+        == "https://auth.example.com/realms/myrealm/protocol/openid-connect/auth"
+    )
     assert "code_challenge_methods_supported" in result
 
 

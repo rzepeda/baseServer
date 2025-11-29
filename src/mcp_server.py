@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from mcp.server.fastmcp import FastMCP
 
+from src.config import get_config as _get_config  # Moved to top
 from src.models.mcp import ToolExecutionContext
 from src.registry.tool_registry import ToolRegistry
 from src.utils.context import auth_context_var
@@ -18,8 +19,6 @@ logger = get_logger(__name__)
 tool_registry = ToolRegistry()
 
 # Load configuration to determine SSE mode
-from src.config import get_config as _get_config
-
 _config = _get_config()
 
 # Initialize FastMCP application

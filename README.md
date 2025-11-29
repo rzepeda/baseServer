@@ -73,6 +73,8 @@ Both servers share the same tool implementations (YouTube transcript tool) and t
 
 This server is protected by OAuth 2.0 bearer token authentication. Only authorized clients with valid tokens can access the tool endpoints.
 
+**Note:** This server now supports the **OAuth 2.0 Authorization Code Flow**, which is a user-interactive flow required by Claude.ai. This means users will be redirected to an identity provider (e.g., Keycloak) to log in and authorize access when connecting via Claude.ai.
+
 To configure OAuth, ensure the following environment variables are set in your `.env` file (copied from `.env.example`):
 
 -   `OAUTH_PROVIDER_URL`: The base URL of your OAuth provider (e.g., `https://your-oauth-provider.com`). This is used to construct the full validation endpoint URL if not explicitly provided.
@@ -158,21 +160,46 @@ CLOUDFLARE_TUNNEL_URL=https://thermal-lang-jewish-excitement.trycloudflare.com
 
 ### Step 3: Enter Server Configuration
 
+
+
 Fill in the following fields:
 
-- **Name:** `YouTube Transcript Server` (or any descriptive name)
-- **URL:** Your Cloudflare tunnel URL from Step 1 **WITH `/mcp` path**
-  - Example: `https://calendar-computational-bring-ever.trycloudflare.com/mcp`
-  - **CRITICAL:** Must include the `/mcp` path - Claude.ai does not add it automatically
-- **Authentication:** Select **"OAuth 2.0"**
-  - **Client ID:** Enter the `OAUTH_CLIENT_ID` configured for Claude.ai with your OAuth provider.
-  - **Client Secret:** Enter the `OAUTH_CLIENT_SECRET` configured for Claude.ai with your OAuth provider.
-  - **Scope:** Enter the required `OAUTH_SCOPES` (e.g., `read:transcripts`) that Claude.ai should request.
-  - **Token URL:** The URL of your OAuth provider's **token issuance endpoint** (e.g., `https://your-oauth-provider.com/oauth/token` or `https://your-oauth-provider.com/token`). This is where Claude.ai will request an access token using its client credentials.
 
-Click **"Connect"** or **"Save"**..
 
-### Step 4: Verify Connection
+-   **Name:** `YouTube Transcript Server` (or any descriptive name)
+
+-   **URL:** Your Cloudflare tunnel URL from Step 1 **WITH `/mcp` path**
+
+    -   Example: `https://calendar-computational-bring-ever.trycloudflare.com/mcp`
+
+    -   **CRITICAL:** Must include the `/mcp` path - Claude.ai does not add it automatically
+
+-   **Authentication:** Select **"OAuth 2.0"**
+
+    -   **Client ID:** Enter the `OAUTH_CLIENT_ID` configured for Claude.ai with your OAuth provider. This identifies Claude.ai to your OAuth provider.
+
+    -   **Client Secret:** Enter the `OAUTH_CLIENT_SECRET` configured for Claude.ai. This secret is used by Claude.ai to securely exchange the authorization code for an access token.
+
+    -   **Scope:** Enter the required `OAUTH_SCOPES` (e.g., `read:transcripts`) that Claude.ai should request.
+
+    -   **Token URL:** **Leave this field BLANK.** Claude.ai will automatically discover the `authorization_endpoint` and `token_endpoint` from your server's discovery endpoint (`/.well-known/oauth-authorization-server`).
+
+    -   **Authorization Endpoint:** **Leave this field BLANK.** Claude.ai will discover this from your server's discovery endpoint.
+
+
+
+Click **"Connect"** or **"Save"**.
+
+### Step 4: User Login Flow
+
+After clicking "Connect" (or "Save"), Claude.ai will initiate the Authorization Code flow:
+
+1.  **Redirect to OAuth Provider:** Your browser will open a new tab or window, redirecting you to your configured OAuth provider (e.g., Keycloak) for login.
+2.  **Log In:** Enter your credentials for your OAuth provider.
+3.  **Authorize Application:** You may be prompted to authorize Claude.ai to access your MCP server. Confirm this authorization.
+4.  **Redirect Back:** After successful login and authorization, you will be redirected back to Claude.ai.
+
+### Step 5: Verify Connection
 
 1. Claude.ai will attempt to connect to your MCP server
 2. Look for a **"Connected"** status indicator
@@ -182,7 +209,7 @@ Click **"Connect"** or **"Save"**..
    - Tunnel URL in Claude.ai matches the URL in your `.env` file
    - Firewall/network allows outbound connections
 
-### Step 5: Test the Tool
+### Step 6: Test the Tool
 
 In a new Claude.ai chat:
 
@@ -335,29 +362,31 @@ For persistent tunnel configuration:
    ```
    Expected response: `{"status": "healthy"}`
 
-4. **Use the tool remotely (with OAuth authentication):**
+### Use the tool remotely (with OAuth authentication):
 
-   **Note:** All tool endpoints require OAuth 2.0 authentication. Include a valid bearer token in the Authorization header:
+**Note:** All tool endpoints are protected by OAuth 2.0 bearer token authentication. When connecting via Claude.ai, the token is acquired automatically via the Authorization Code Flow. For other clients, you would need to implement an Authorization Code Flow client to acquire a token.
 
-   ```bash
-   curl -X POST "https://your-tunnel-url/tools/invoke" \
-     -H "Content-Type: application/json" \
-     -H "Authorization: Bearer YOUR_OAUTH_TOKEN_HERE" \
-     -d '{
-       "tool_name": "get_youtube_transcript",
-       "parameters": {
-         "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-       }
-     }'
-   ```
+For direct `curl` commands, you would need a valid bearer token obtained through a successful OAuth flow:
 
-   **Without authentication, you'll receive a 401 error:**
-   ```json
-   {
-     "error": "invalid_request",
-     "error_description": "Authorization header is missing"
-   }
-   ```
+```bash
+curl -X POST "https://your-tunnel-url/tools/invoke" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_OAUTH_TOKEN_HERE" \
+  -d '{
+    "tool_name": "get_youtube_transcript",
+    "parameters": {
+      "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    }
+  }'
+```
+
+**Without authentication, you'll receive a 401 error:**
+```json
+{
+  "error": "invalid_request",
+  "error_description": "Authorization header is missing"
+}
+```
 
 5. **Stop when finished:**
    - Stop tunnel: `Ctrl+C` in tunnel terminal

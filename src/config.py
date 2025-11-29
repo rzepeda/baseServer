@@ -1,7 +1,7 @@
 """Configuration management using environment variables."""
 
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Optional # Added Optional
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -58,14 +58,30 @@ class Config(BaseSettings):
     )
 
     # Keycloak Configuration (used for discovery and JWT validation)
-    keycloak_url: str = Field(..., description="Keycloak base URL (e.g., https://auth.example.com)")
-    keycloak_realm: str = Field(..., description="Keycloak realm name (e.g., myrealm)")
+    keycloak_url: Optional[str] = Field(None, description="Keycloak base URL (e.g., https://auth.example.com)")
+    keycloak_realm: Optional[str] = Field(None, description="Keycloak realm name (e.g., myrealm)")
 
     @property
     def oauth_config(self) -> OAuthConfig:
         """Returns an instance of OAuthConfig for easy access and validation."""
         # Parse scopes from comma-separated string to list
-        scopes_list = [s.strip() for s in self.oauth_scopes.split(",") if s.strip()]
+        scopes_list = []
+        if self.oauth_scopes:
+            scopes_list = [s.strip() for s in self.oauth_scopes.split(",") if s.strip()]
+
+        # These fields are required for OAuthConfig, so we must ensure they are not None.
+        # In practice, pydantic-settings will have already ensured their presence via validation
+        # if they are truly required by the application and not just for mypy's sake.
+        # For mypy, we can assert their types if confident they will be present at runtime.
+        if self.oauth_provider_url is None:
+            raise ValueError("OAUTH_PROVIDER_URL is not configured.")
+        if self.oauth_client_id is None:
+            raise ValueError("OAUTH_CLIENT_ID is not configured.")
+        if self.oauth_client_secret is None:
+            raise ValueError("OAUTH_CLIENT_SECRET is not configured.")
+        if self.oauth_validation_endpoint is None:
+            raise ValueError("OAUTH_VALIDATION_ENDPOINT is not configured.")
+
         return OAuthConfig(
             provider_url=self.oauth_provider_url,
             client_id=self.oauth_client_id,
@@ -78,4 +94,4 @@ class Config(BaseSettings):
 @lru_cache
 def get_config() -> Config:
     """Get cached configuration instance."""
-    return Config()
+    return Config() # type: ignore

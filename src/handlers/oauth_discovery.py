@@ -19,6 +19,12 @@ logger = get_logger(__name__)
 _cached_metadata: dict[str, Any] | None = None
 
 
+def clear_oauth_discovery_cache() -> None:
+    """Clears the cached OAuth discovery metadata."""
+    global _cached_metadata
+    _cached_metadata = None
+
+
 @router.get("/.well-known/oauth-protected-resource", include_in_schema=False)
 async def get_oauth_protected_resource_metadata() -> dict[str, Any]:
     """
@@ -32,12 +38,19 @@ async def get_oauth_protected_resource_metadata() -> dict[str, Any]:
     """
     config = get_config()
 
+    if config.keycloak_url is None or config.keycloak_realm is None:
+        logger.error("Keycloak URL or Realm is not configured for Protected Resource Metadata.")
+        raise HTTPException(
+            status_code=500,
+            detail="Server is not configured for OAuth Protected Resource Metadata."
+        )
+
     # Return metadata pointing to the authorization server
     return {
         "resource": "mcp",
         "authorization_servers": [
             f"{config.keycloak_url.rstrip('/')}/realms/{config.keycloak_realm}"
-        ]
+        ],
     }
 
 
@@ -58,6 +71,13 @@ async def get_oauth_discovery_document() -> dict[str, Any]:
     """
     global _cached_metadata
     config = get_config()
+
+    if config.keycloak_url is None or config.keycloak_realm is None:
+        logger.error("Keycloak URL or Realm is not configured for OAuth Discovery.")
+        raise HTTPException(
+            status_code=500,
+            detail="Server is not configured for OAuth Discovery."
+        )
 
     if _cached_metadata:
         logger.info("oauth_discovery_cache_hit")
@@ -90,7 +110,7 @@ async def get_oauth_discovery_document() -> dict[str, Any]:
         raise HTTPException(
             status_code=503,
             detail="Could not connect to the authentication provider.",
-        )
+        ) from e
     except Exception as e:
         logger.error(
             "oauth_discovery_unexpected_error",
@@ -100,4 +120,4 @@ async def get_oauth_discovery_document() -> dict[str, Any]:
         raise HTTPException(
             status_code=500,
             detail="An unexpected error occurred while fetching the authentication configuration.",
-        )
+        ) from e

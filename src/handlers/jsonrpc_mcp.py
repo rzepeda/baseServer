@@ -1,6 +1,7 @@
 """Pure JSON-RPC handler for MCP protocol (Claude.ai compatible)."""
 
 from uuid import uuid4
+from typing import Any # Import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -21,11 +22,11 @@ class JSONRPCRequest(BaseModel):
     jsonrpc: str
     id: int | str
     method: str
-    params: dict = {}
+    params: dict[str, Any] = {} # Added type parameters
 
 
 @router.post("/mcp")
-async def jsonrpc_mcp_handler(rpc_request: JSONRPCRequest, request: Request):
+async def jsonrpc_mcp_handler(rpc_request: JSONRPCRequest, request: Request) -> JSONResponse: # Added return type
     """
     Pure JSON-RPC 2.0 handler for MCP protocol.
 
