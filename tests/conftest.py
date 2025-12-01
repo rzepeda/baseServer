@@ -1,6 +1,9 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from authlib.jose.rfc7517.jwk import JsonWebKey
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
@@ -9,10 +12,6 @@ from src.middleware.oauth import OAuthMiddleware
 from src.models.auth import AuthContext
 from src.registry.tool_registry import register_all_tools
 from src.utils.context import auth_context_var
-
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from authlib.jose.rfc7517.jwk import JsonWebKey
 
 
 def pytest_configure(config):

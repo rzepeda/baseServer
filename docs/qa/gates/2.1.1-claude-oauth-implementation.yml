@@ -1,28 +1,65 @@
-
 schema: 1
-story: "2.1.1"
-story_title: "Claude OAuth Implementation"
-gate: "FAIL"
-status_reason: "Story is untestable and therefore unreviewable. The project's test suite is in a completely broken state following the work in Story 2.1."
-reviewer: "Quinn (Test Architect)"
-updated: "2025-11-28T20:05:00Z"
-
-waiver: { active: false }
-
+story: 2.1.1
+story_title: Claude OAuth Implementation
+gate: FAIL
+status_reason: 'Critical test suite failures. 3 integration tests in test_mcp_protocol.py
+  are failing with 401 Unauthorized after OAuth enablement, rendering the test suite
+  unreliable.'
+reviewer: Quinn (Test Architect)
+updated: '2025-11-30T12:00:00Z'
 top_issues:
-  - id: "ENV-001"
-    severity: high
-    finding: "The test suite is non-functional, preventing any quality assessment of this story."
-    suggested_action: "Do not start work on this story. The development team must first resolve all test failures and recommendations outlined in the QA report for Story 2.1."
-
+- issue_id: QA-2.1.1-T1
+  description: The test suite is broken. 3 tests in tests/integration/test_mcp_protocol.py
+    fail with 401 Unauthorized.
+  severity: high
+  suggested_owner: dev
+quality_score: 80
+expires: '2025-12-14T12:00:00Z'
+evidence:
+  tests_reviewed: 74
+  risks_identified: 2
+  trace:
+    ac_covered:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 9
+    - 10
+    ac_gaps:
+    - 8
+    - 11
+nfr_validation:
+  security:
+    status: PASS
+    notes: The OAuth implementation correctly protects endpoints. The failing tests
+      confirm this.
+  performance:
+    status: PASS
+    notes: No issues identified. Caching is used appropriately.
+  reliability:
+    status: FAIL
+    notes: The test suite is unreliable, which is a critical reliability issue for
+      the project's development process.
+  maintainability:
+    status: CONCERNS
+    notes: 30 linting violations were found, indicating that code quality standards
+      are not being consistently enforced.
 recommendations:
   immediate:
-    - action: "Move this story back to the backlog and mark it as 'Blocked' by Story 2.1's test failures."
-      refs: ["docs/stories/2.1.story.md#QA-Results"]
-  future: []
-
-nfr_validation:
-  security: { status: FAIL, notes: "Cannot be assessed." }
-  performance: { status: FAIL, notes: "Cannot be assessed." }
-  reliability: { status: FAIL, notes: "Cannot be assessed." }
-  maintainability: { status: FAIL, notes: "Cannot be assessed." }
+  - action: 'Fix 3 failing tests in tests/integration/test_mcp_protocol.py by providing
+      a valid mock JWT in the test requests.'
+    refs:
+    - tests/integration/test_mcp_protocol.py
+  - action: Run `ruff check . --fix` to resolve all auto-fixable linting errors.
+    refs:
+    - "./"
+  future:
+  - action: Consider refactoring the test server setup in tests/integration/test_mcp_protocol.py
+      to use the TestClient pattern for consistency and simplicity.
+    refs:
+    - tests/integration/test_mcp_protocol.py
+    - tests/integration/test_authorization_code_flow.py

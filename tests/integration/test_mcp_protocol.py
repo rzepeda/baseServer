@@ -4,22 +4,19 @@ import json
 import multiprocessing
 import time
 from collections.abc import Generator
-from datetime import UTC
 from typing import Any
+from unittest.mock import patch  # Added patch, MagicMock
 
 import httpx
 import pytest
 import uvicorn
 from fastapi import FastAPI
-from pydantic import SecretStr # Added SecretStr
-from unittest.mock import patch, MagicMock # Added patch, MagicMock
+from pydantic import SecretStr  # Added SecretStr
 
-from src.config import get_config
 from src.mcp_server import mcp_app
 from src.server import app as rest_api_app
 from src.server import lifespan
-from tests.unit.test_oauth_middleware import create_test_jwt # Added create_test_jwt
-import src.models.auth # Added import for src.models.auth
+from tests.unit.test_oauth_middleware import create_test_jwt  # Added create_test_jwt
 
 # Use different ports for testing to avoid conflicts
 TEST_REST_API_PORT = 8091
@@ -37,21 +34,19 @@ def run_server(mock_config_data: dict, jwks_mock_data: dict):
     # Apply patches within the subprocess
     import src.config
     import src.middleware.oauth
-    from unittest.mock import patch
-    from src.config import Config # For creating a real Config instance
-    from pydantic import SecretStr # Needed for SecretStr conversion
-    import src.models.auth # Needed for OAuthConfig spec
+    import src.models.auth  # Needed for OAuthConfig spec
+    from src.config import Config  # For creating a real Config instance
 
     # Convert SecretStr back from string for Config instantiation
     if 'oauth_client_secret' in mock_config_data:
         mock_config_data['oauth_client_secret'] = SecretStr(mock_config_data['oauth_client_secret'])
-    
+
     # Create a real Config instance from the data for the subprocess
     # Explicitly set _env_file to '' to prevent loading of any .env files
-    
+
     # Clear any cached config in this subprocess before applying patches
     src.config.get_config.cache_clear()
-    
+
     real_config_instance = Config(**mock_config_data, _env_file='')
 
     with (
@@ -62,7 +57,7 @@ def run_server(mock_config_data: dict, jwks_mock_data: dict):
         config.rest_api_port = TEST_REST_API_PORT
         config.mcp_port = 8090 # Ensure MCP server runs on a predictable port for the test client
         config.use_oauth = False # Temporarily disable OAuth for MCP protocol integration tests
-        
+
         # Create a root FastAPI app for testing
         root_app = FastAPI(title="Test Gateway", version="0.1.0", lifespan=lifespan)
 

@@ -1,7 +1,7 @@
 """Configuration management using environment variables."""
 
 from functools import lru_cache
-from typing import Literal, Optional # Added Optional
+from typing import Literal  # Added Optional
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -58,8 +58,8 @@ class Config(BaseSettings):
     )
 
     # Keycloak Configuration (used for discovery and JWT validation)
-    keycloak_url: Optional[str] = Field(None, description="Keycloak base URL (e.g., https://auth.example.com)")
-    keycloak_realm: Optional[str] = Field(None, description="Keycloak realm name (e.g., myrealm)")
+    keycloak_url: str | None = Field(None, description="Keycloak base URL (e.g., https://auth.example.com)")
+    keycloak_realm: str | None = Field(None, description="Keycloak realm name (e.g., myrealm)")
 
     @property
     def oauth_config(self) -> OAuthConfig:

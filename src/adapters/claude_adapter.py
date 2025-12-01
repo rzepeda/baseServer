@@ -1,5 +1,5 @@
 import json
-from collections.abc import MutableMapping # Added MutableMapping
+from collections.abc import MutableMapping  # Added MutableMapping
 from typing import Any
 
 from starlette.types import ASGIApp, Receive, Scope, Send

@@ -1,25 +1,23 @@
 """Integration test for Authorization Code Flow with OAuth Discovery."""
 
-from unittest.mock import AsyncMock, patch, MagicMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
 import pytest
-from starlette.testclient import TestClient
-from fastapi import FastAPI, Request
-from starlette.responses import JSONResponse
-
-from datetime import UTC, datetime, timedelta
 from authlib.jose.rfc7517.jwk import JsonWebKey
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from fastapi import FastAPI
 from jose import jwt as jose_jwt
+from starlette.testclient import TestClient
 
 from src.config import get_config
-from src.handlers.oauth_discovery import clear_oauth_discovery_cache
-from src.server import app, lifespan, invoke_tool, list_tools
+from src.handlers.oauth_discovery import clear_oauth_discovery_cache, get_oauth_discovery_document
 from src.middleware.oauth import OAuthMiddleware
 from src.models.mcp import ToolExecutionContext
 from src.registry.tool_registry import ToolRegistry
-from src.handlers.oauth_discovery import get_oauth_discovery_document
+from src.server import app, invoke_tool, lifespan, list_tools
 
 
 @pytest.fixture
@@ -200,8 +198,8 @@ def mock_app_with_oauth(jwks_keys, mock_keycloak_discovery):
         tool_registry._registered_tools = {}
         tool_registry._registered_metadata = {}
         # Manually register the YouTube tool for testing purposes
-        from src.tools.youtube_tool import YouTubeTool
         from src.tools.hello_world_tool import HelloWorldTool
+        from src.tools.youtube_tool import YouTubeTool
         tool_registry.register_tool(YouTubeTool())
         tool_registry.register_tool(HelloWorldTool())
         test_app.state.registry = tool_registry
@@ -214,7 +212,7 @@ def mock_app_with_oauth(jwks_keys, mock_keycloak_discovery):
 async def test_discovery_endpoint_returns_metadata(mock_keycloak_discovery, mock_app_with_oauth): # Modified to use mock_app_with_oauth
     """Test that discovery endpoint successfully returns OAuth metadata."""
     client = mock_app_with_oauth # Use the client from the new fixture
-    
+
     response = client.get("/.well-known/oauth-authorization-server")
 
     assert response.status_code == 200
@@ -233,7 +231,7 @@ async def test_discovery_endpoint_returns_metadata(mock_keycloak_discovery, mock
 async def test_discovery_endpoint_accessible_without_auth(mock_app_with_oauth): # Modified to use mock_app_with_oauth
     """Test that discovery endpoint is accessible without authentication."""
     client = mock_app_with_oauth # Use the client from the new fixture
-    
+
     # No Authorization header - should still work
     response = client.get("/.well-known/oauth-authorization-server")
     assert response.status_code == 200

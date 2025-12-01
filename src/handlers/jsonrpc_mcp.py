@@ -1,7 +1,7 @@
 """Pure JSON-RPC handler for MCP protocol (Claude.ai compatible)."""
 
+from typing import Any  # Import Any
 from uuid import uuid4
-from typing import Any # Import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse

@@ -2,7 +2,7 @@ import hashlib
 import time
 from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Any, Optional, cast # Added cast
+from typing import Any, cast  # Added cast
 
 import httpx
 from authlib.jose import JoseError, JsonWebKey, jwt

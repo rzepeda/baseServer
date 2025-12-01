@@ -1,0 +1,58 @@
+schema: 1
+story: 2.1
+story_title: OAuth 2.0 Authentication Implementation
+gate: FAIL
+status_reason: 'Second review failure. Critical test suite regression remains unresolved.
+  3 tests in tests/integration/test_mcp_protocol.py are still failing with 401
+  Unauthorized.'
+reviewer: Quinn (Test Architect)
+updated: '2025-11-30T13:00:00Z'
+top_issues:
+- issue_id: QA-2.1-T2
+  description: The test suite is still broken. 3 tests in tests/integration/test_mcp_protocol.py
+    fail with 401 Unauthorized. This issue was reported in the previous review
+    and has not been fixed.
+  severity: high
+  suggested_owner: dev
+quality_score: 0
+expires: '2025-12-14T13:00:00Z'
+evidence:
+  tests_reviewed: 74
+  risks_identified: 1
+  trace:
+    ac_covered:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    ac_gaps:
+    - 9
+    - 10
+    - 11
+nfr_validation:
+  security:
+    status: CONCERNS
+    notes: While the feature appears to work, the broken test suite means its continued
+      correctness cannot be guaranteed through automated regression testing.
+  performance:
+    status: PASS
+    notes: No issues identified.
+  reliability:
+    status: FAIL
+    notes: The test suite is unreliable, which is a critical reliability issue for
+      the project's development process.
+  maintainability:
+    status: PASS
+    notes: Linting issues from the first review were resolved.
+recommendations:
+  immediate:
+  - action: 'Fix 3 failing tests in tests/integration/test_mcp_protocol.py by providing
+      a valid mock JWT in the test requests. This is the same recommendation as
+      the previous review cycle.'
+    refs:
+    - tests/integration/test_mcp_protocol.py
+  future: []
