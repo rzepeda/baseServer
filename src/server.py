@@ -57,7 +57,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
-
+print("--- LOADING NEW SERVER CONFIG WITH TRUSTED HOSTS ---")
 app.add_middleware(
     TrustedHostMiddleware, 
     allowed_hosts=[
