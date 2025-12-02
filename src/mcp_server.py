@@ -46,7 +46,9 @@ async def get_youtube_transcript(url: str) -> str:
         auth_context_dict = auth_context.model_dump() if auth_context else None
 
         tool_context = ToolExecutionContext(
-            correlation_id=correlation_id, logger=bound_logger, auth_context=auth_context_dict
+            correlation_id=correlation_id,
+            logger=bound_logger,
+            auth_context=auth_context_dict
         )
 
         result = await tool_instance.handler({"url": url}, tool_context)
@@ -72,3 +74,13 @@ if _config.use_sse:
 else:
     logger.info("Exporting MCP Streamable HTTP ASGI app")
     mcp_app = _mcp.streamable_http_app()
+
+# Add a health check endpoint for testability
+from starlette.routing import Route
+from starlette.responses import JSONResponse
+
+async def health_check(request):
+    """A simple health check endpoint for the MCP server."""
+    return JSONResponse({"status": "healthy"})
+
+mcp_app.router.routes.append(Route("/health", health_check))

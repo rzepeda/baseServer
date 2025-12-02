@@ -22,11 +22,7 @@ from tests.unit.test_oauth_middleware import create_test_jwt  # Added create_tes
 TEST_REST_API_PORT = 8091
 BASE_URL = f"http://127.0.0.1:{TEST_REST_API_PORT}"
 # FastMCP streamable HTTP expects requests at the root of the mounted app
-MCP_ENDPOINT = f"{BASE_URL}/mcp/"
-
-
-# Mock valid OAuth token for integration tests
-MOCK_VALID_TOKEN = "test_valid_token_12345"
+MCP_ENDPOINT = f"{BASE_URL}/"
 
 
 def run_server(mock_config_data: dict, jwks_mock_data: dict):
@@ -34,38 +30,29 @@ def run_server(mock_config_data: dict, jwks_mock_data: dict):
     # Apply patches within the subprocess
     import src.config
     import src.middleware.oauth
-    import src.models.auth  # Needed for OAuthConfig spec
-    from src.config import Config  # For creating a real Config instance
-
-    # Convert SecretStr back from string for Config instantiation
-    if 'oauth_client_secret' in mock_config_data:
-        mock_config_data['oauth_client_secret'] = SecretStr(mock_config_data['oauth_client_secret'])
-
-    # Create a real Config instance from the data for the subprocess
-    # Explicitly set _env_file to '' to prevent loading of any .env files
+    import src.models.auth
+    from src.config import Config
+    from src.mcp_server import mcp_app # Import the mcp_app directly
 
     # Clear any cached config in this subprocess before applying patches
     src.config.get_config.cache_clear()
 
+    # Convert SecretStr back from string for Config instantiation
+    if 'oauth_client_secret' in mock_config_data:
+        mock_config_data['oauth_client_secret'] = SecretStr(mock_config_data['oauth_client_secret'])
+    
     real_config_instance = Config(**mock_config_data, _env_file='')
 
     with (
         patch.object(src.config, 'get_config', return_value=real_config_instance),
         patch.object(src.middleware.oauth, '_get_cached_jwks', return_value=jwks_mock_data)
     ):
-        config = src.config.get_config() # This will now return the real_config_instance
-        config.rest_api_port = TEST_REST_API_PORT
-        config.mcp_port = 8090 # Ensure MCP server runs on a predictable port for the test client
-        config.use_oauth = False # Temporarily disable OAuth for MCP protocol integration tests
+        config = src.config.get_config()
+        config.rest_api_port = TEST_REST_API_PORT # The port uvicorn will run on
+        config.use_oauth = True # Ensure OAuth is active for the test
 
-        # Create a root FastAPI app for testing
-        root_app = FastAPI(title="Test Gateway", version="0.1.0", lifespan=lifespan)
-
-        # Mount the REST API server at the root
-        root_app.mount("/", rest_api_app, name="rest_api")
-        root_app.mount("/mcp", mcp_app, name="mcp_server")
-
-        uvicorn.run(root_app, host="127.0.0.1", port=config.rest_api_port, log_level="warning")
+        # Run only the mcp_app for this protocol test
+        uvicorn.run(mcp_app, host="127.0.0.1", port=config.rest_api_port, log_level="warning")
 
 
 @pytest.fixture(scope="session")
@@ -144,7 +131,7 @@ async def test_health_endpoint(mcp_server: None):
 
 
 @pytest.mark.asyncio
-async def test_mcp_tools_list(mcp_server: None):
+async def test_mcp_tools_list(mcp_server: None, auth_token: str):
     """Test the MCP 'tools/list' method."""
     request_payload = {
         "jsonrpc": "2.0",
@@ -154,7 +141,11 @@ async def test_mcp_tools_list(mcp_server: None):
     }
 
     async with httpx.AsyncClient() as client:
-        headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+            "Authorization": f"Bearer {auth_token}",
+        }
         response = await client.post(
             MCP_ENDPOINT, data=json.dumps(request_payload), headers=headers
         )
@@ -187,7 +178,7 @@ async def test_mcp_tools_list(mcp_server: None):
 
 
 @pytest.mark.asyncio
-async def test_mcp_tools_call_success(mcp_server: None, mocker):
+async def test_mcp_tools_call_success(mcp_server: None, mocker, auth_token: str):
     """Test a successful 'tools/call' for get_youtube_transcript."""
     # Mock the YouTube API call to avoid external dependency
     mock_transcript = "This is a mock transcript."
@@ -211,7 +202,11 @@ async def test_mcp_tools_call_success(mcp_server: None, mocker):
     }
 
     async with httpx.AsyncClient() as client:
-        headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+            "Authorization": f"Bearer {auth_token}",
+        }
         response = await client.post(
             MCP_ENDPOINT, data=json.dumps(request_payload), headers=headers
         )
@@ -231,7 +226,7 @@ async def test_mcp_tools_call_success(mcp_server: None, mocker):
 
 
 @pytest.mark.asyncio
-async def test_mcp_tools_call_invalid_url(mcp_server: None):
+async def test_mcp_tools_call_invalid_url(mcp_server: None, auth_token: str):
     """Test a failed 'tools/call' due to an invalid URL."""
     request_payload = {
         "jsonrpc": "2.0",
@@ -244,7 +239,11 @@ async def test_mcp_tools_call_invalid_url(mcp_server: None):
     }
 
     async with httpx.AsyncClient() as client:
-        headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+            "Authorization": f"Bearer {auth_token}",
+        }
         response = await client.post(
             MCP_ENDPOINT, data=json.dumps(request_payload), headers=headers
         )
