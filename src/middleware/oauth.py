@@ -34,10 +34,10 @@ class OAuthError(Exception):
 
 
 @lru_cache(maxsize=128)
-async def _get_cached_jwks(jwks_uri: str) -> dict[str, Any]:
+def _get_cached_jwks(jwks_uri: str) -> dict[str, Any]: # Changed 'any' to 'Any'
     """
     Fetch and cache JWKS from the provider.
-    
+
     Uses lru_cache to avoid repeated fetches to the JWKS endpoint.
     The cache is based on the jwks_uri.
     """
@@ -53,7 +53,6 @@ async def _get_cached_jwks(jwks_uri: str) -> dict[str, Any]:
     except httpx.RequestError as e:
         logger.error("oauth_jwks_fetch_failed", jwks_uri=jwks_uri, error=str(e))
         raise OAuthError("server_error", f"Failed to fetch JWKS: {e}", 503) from e
-
 
 
 async def validate_token_with_authlib(

@@ -21,10 +21,10 @@ import secrets
 import base64
 import httpx
 import json
+import urllib.parse
 from dotenv import load_dotenv
 
 def url_encode(s: str) -> str:
-    import urllib.parse
     return urllib.parse.quote(s)
 
 def get_json_value(json_str: str, key: str) -> str:
@@ -134,11 +134,14 @@ def main():
         "redirect_uri": redirect_uri,
         "code_verifier": code_verifier,
         "client_id": client_id,
-        "client_secret": client_secret,
     }
     
+    auth_tuple = None
+    if client_secret and client_secret != "YOUR_CLIENT_SECRET":
+        auth_tuple = (client_id, client_secret)
+
     try:
-        token_response = httpx.post(token_endpoint, data=token_data)
+        token_response = httpx.post(token_endpoint, data=token_data, auth=auth_tuple)
         token_response.raise_for_status()
         token_json = token_response.json()
     except (httpx.RequestError, json.JSONDecodeError) as e:
@@ -157,73 +160,55 @@ def main():
 
     print("\n\033[0;32m[SUCCESS] Token Exchange Complete!\033[0m")
 
-    # --- Step 5: Verification (SSE Flow) ---
-    print("\n\033[0;36m[Step 5] Verification: Testing Token against SSE Server...\033[0m")
+    # --- Step 5: Verification (Testing Non-Existent Endpoint) ---
+    print("\n\033[0;36m[Step 5] Verification: Testing token against the non-existent '/v1/tools' endpoint...\033[0m")
     
+    test_endpoint_v1 = f"{mcp_url}/v1/tools"
+    print(f"Target: {test_endpoint_v1}")
+
     headers = {"Authorization": f"Bearer {access_token}"}
     
-    # 1. Connect to /sse to get a session_id
-    sse_endpoint = f"{mcp_url}/sse"
-    print(f"Target (SSE Connect): {sse_endpoint}")
-    
     try:
-        with httpx.stream("GET", sse_endpoint, headers=headers, timeout=10) as sse_response:
-            sse_response.raise_for_status()
-            
-            # The first event should contain the session_id
-            session_id = None
-            for line in sse_response.iter_lines():
-                if line.startswith("data:"):
-                    data = json.loads(line.split("data:", 1)[1])
-                    if data.get("event") == "session_created":
-                        session_id = data.get("session_id")
-                        print(f"\033[0;32mSuccessfully connected to SSE and got session_id: {session_id}\033[0m")
-                        break # Got what we needed
-            
-            if not session_id:
-                print("\n\033[0;31m[FINAL FAILURE] Did not receive a session_id from the /sse endpoint.\033[0m")
-                return
-
-    except httpx.RequestError as e:
-        print(f"\n\033[0;31m[FINAL FAILURE] Request to /sse endpoint failed.\033[0m")
-        print(f"Details: {e}")
-        if hasattr(e, 'response'):
-            print(f"Server Response: {e.response.text}")
-        return
-
-    # 2. POST message to /messages/ with the session_id
-    messages_endpoint = f"{mcp_url}/messages/?session_id={session_id}"
-    print(f"Target (POST Message): {messages_endpoint}")
-
-    rpc_payload = {
-        "jsonrpc": "2.0",
-        "id": "e2e-test-1",
-        "method": "tools/list",
-        "params": {},
-    }
-
-    # The /messages/ endpoint does not require the Authorization header again
-    # as the session is already authenticated.
-    message_headers = {"Content-Type": "application/json"}
-    
-    try:
-        final_response = httpx.post(messages_endpoint, headers=message_headers, json=rpc_payload, timeout=10)
-        final_response.raise_for_status()
+        response_v1 = httpx.get(test_endpoint_v1, headers=headers, timeout=10)
         
-        print("\n\033[0;32m[FINAL SUCCESS] Authenticated request to server succeeded!\033[0m")
-        print(f"\n\033[0;37mServer Response (Status {final_response.status_code}):\033[0m")
+        print(f"\n\033[0;37mServer Response for /v1/tools (Status {response_v1.status_code}):\033[0m")
         try:
-            print(json.dumps(final_response.json(), indent=2))
+            print(json.dumps(response_v1.json(), indent=2))
         except json.JSONDecodeError:
-            print(final_response.text)
+            print(response_v1.text)
 
     except httpx.RequestError as e:
-        print(f"\n\033[0;31m[FINAL FAILURE] Authenticated request to /messages/ failed.\033[0m")
+        print(f"\n\033[0;31m[FAILURE] Request to {test_endpoint_v1} failed.\033[0m")
         print(f"Details: {e}")
-        if hasattr(e, 'response'):
-            print(f"Server Response: {e.response.text}")
+        return
+        
+    # --- Step 6: Verification (Testing Correct Endpoint) ---
+    print("\n\033[0;36m[Step 6] Verification: Reusing token to test the correct '/tools/list' endpoint...\033[0m")
+    
+    test_endpoint_tools = f"{mcp_url}/tools/list"
+    print(f"Target: {test_endpoint_tools}")
+
+    # No need to get a new token, the existing access_token is reusable
+    
+    try:
+        response_tools = httpx.get(test_endpoint_tools, headers=headers, timeout=10)
+        
+        print(f"\n\033[0;37mServer Response for /tools/list (Status {response_tools.status_code}):\033[0m")
+        
+        if response_tools.status_code == 200:
+             print("\n\033[0;32m[FINAL SUCCESS] Successfully authenticated and received a valid response!\033[0m")
+        else:
+            print("\n\033[0;31m[FINAL FAILURE] Request was sent, but server responded with an error.\033[0m")
+            
+        try:
+            print(json.dumps(response_tools.json(), indent=2))
+        except json.JSONDecodeError:
+            print(response_tools.text)
+
+    except httpx.RequestError as e:
+        print(f"\n\033[0;31m[FAILURE] Request to {test_endpoint_tools} failed.\033[0m")
+        print(f"Details: {e}")
         return
 
 if __name__ == "__main__":
-    import urllib.parse # Add missing import for main execution
     main()

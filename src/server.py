@@ -73,9 +73,10 @@ if config.use_oauth:
         OAuthMiddleware,
         exclude_paths=[
             "/health",
-            "/.well-known/oauth-authorization-server",
             "/.well-known/oauth-protected-resource",
+            "/.well-known/oauth-authorization-server",
             "/register",
+            "/mcp/sse",
         ],
     )
 else:

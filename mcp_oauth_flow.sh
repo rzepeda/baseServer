@@ -166,3 +166,23 @@ if [ -n "$ACCESS_TOKEN" ]; then
 else
     echo -e "\n\033[0;31m[FAILURE] No access_token found.\033[0m"
 fi
+
+
+
+# --- Step 6: Verification (Testing Correct Endpoint) ---
+echo -e "\n\033[0;36m[Step 6] Verification: Reusing token to test the correct '/tools/list' endpoint...\033[0m"
+
+# Define the correct endpoint
+CORRECT_TEST_ENDPOINT="$MCP_URL/tools/list"
+echo "Target: $CORRECT_TEST_ENDPOINT"
+
+# Reuse the ACCESS_TOKEN to make the request
+CORRECT_TEST_RESPONSE=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" "$CORRECT_TEST_ENDPOINT")
+
+echo -e "\n\033[0;37mServer Response for /tools/list:\033[0m"
+# Attempt to pretty-print JSON using Python's json.tool if available
+if command -v python3 &> /dev/null && echo "$CORRECT_TEST_RESPONSE" | python3 -m json.tool &> /dev/null; then
+    echo "$CORRECT_TEST_RESPONSE" | python3 -m json.tool
+else
+    echo "$CORRECT_TEST_RESPONSE"
+fi
