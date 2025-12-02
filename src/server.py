@@ -12,6 +12,7 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from jsonschema import ValidationError as JSONSchemaValidationError
 from jsonschema import validate
 from pydantic import BaseModel
@@ -55,6 +56,17 @@ app = FastAPI(
     description="Serves both the MCP protocol endpoint and supporting REST API endpoints.",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    TrustedHostMiddleware, 
+    allowed_hosts=[
+        "localhost", 
+        "127.0.0.1", 
+        "0.0.0.0",
+        "mcp.agentictools.uk", # <--- The one causing the error
+        "*.agentictools.uk"    # <--- Catch-all for subdomains
+    ]
 )
 
 # Include the new OAuth discovery router
