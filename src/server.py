@@ -198,7 +198,7 @@ async def invoke_tool(request: Request) -> JSONResponse:
 # ... (All your existing code) ...
 
 # ==========================================
-# 🚑 EMERGENCY FIX: HOST HEADER REWRITER
+# 🚑 EMERGENCY FIX: HOST HEADER REWRITER 127.0.0.1
 # ==========================================
 from starlette.types import ASGIApp, Scope, Receive, Send
 
@@ -216,7 +216,7 @@ class ForceHostHeaderMiddleware:
             new_headers = []
             for name, value in scope["headers"]:
                 if name == b"host":
-                    new_headers.append((b"host", b"localhost"))
+                    new_headers.append((b"host", b"127.0.0.1"))
                 else:
                     new_headers.append((name, value))
             
