@@ -216,7 +216,7 @@ class ForceHostHeaderMiddleware:
             new_headers = []
             for name, value in scope["headers"]:
                 if name == b"host":
-                    new_headers.append((b"host", b"127.0.0.1"))
+                    new_headers.append((b"host", b"localhost:8080"))
                 else:
                     new_headers.append((name, value))
             
