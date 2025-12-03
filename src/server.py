@@ -133,31 +133,7 @@ if config.cors_allowed_origins:
 logger.info("Mounted MCP application at /mcp")
 
 # Add unified middleware for the entire application
-if config.use_oauth:
-    logger.info("OAuth middleware enabled for entire application.")
-    app.add_middleware(
-        OAuthMiddleware,
-        exclude_paths=[
-            "/health",
-            "/.well-known/oauth-protected-resource",
-            "/.well-known/oauth-authorization-server",
-            "/register",
-            "/mcp/sse",
-        ],
-    )
-else:
-    logger.warning("OAuth middleware is disabled. This is not safe for production.")
 
-if config.cors_allowed_origins:
-    origins = [origin.strip() for origin in config.cors_allowed_origins.split(",")]
-    logger.info("CORS middleware enabled for entire application", allowed_origins=origins)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
 
 
 # Define REST API endpoints
