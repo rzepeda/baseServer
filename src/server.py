@@ -64,11 +64,75 @@ app.include_router(oauth_router)
 logger.info("Mounted OAuth discovery endpoint at /.well-known/oauth-authorization-server")
 
 # Mount the specialized MCP application at the /mcp path
-app.mount("/mcp", mcp_app)
+#
+#  app.mount("/mcp", mcp_app)
+
+# ==========================================
+# 🚑 EMERGENCY FIX: HOST HEADER REWRITER
+# ==========================================
+from starlette.types import ASGIApp, Scope, Receive, Send
+
+class ForceHostHeaderMiddleware:
+     """
+      Intercepts every request and forces the 'Host' header to be 'localhost:8080'.
+      This bypasses the 'Invalid Host header' error coming from hidden validators
+      within mounted applications like FastMCP.
+     """
+     def __init__(self, app: ASGIApp):
+         self.app = app
+ 
+     async def __call__(self, scope: Scope, receive: Receive, send: Send):
+         if scope["type"] == "http":
+             # Convert headers to a mutable dictionary
+             headers = dict(scope["headers"])
+             
+             # 1. Force Host Header to 'localhost:8080'
+             headers[b"host"] = b"localhost:8080"
+             
+             # 2. Update the scope with the new headers
+             scope["headers"] = list(headers.items())
+         logger.info("EMERGENCY FIX: HOST HEADER REWRITER. localhost:8080")
+             
+         await self.app(scope, receive, send)
+ 
+config = get_config()
+ 
+# Mount the specialized MCP application at the /mcp path,
+# wrapping it with the ForceHostHeaderMiddleware
+app.mount("/mcp", ForceHostHeaderMiddleware(mcp_app))
+logger.info("Mounted MCP application at /mcp with Host Header rewriting enabled.")
+ 
+ 
+if config.use_oauth:
+    logger.info("OAuth middleware enabled for entire application.")
+    app.add_middleware(
+        OAuthMiddleware,
+        exclude_paths=[
+            "/health",
+            "/.well-known/oauth-protected-resource",
+            "/.well-known/oauth-authorization-server",
+            "/register",
+            "/mcp/sse",
+        ],
+    )
+else:
+    logger.warning("OAuth middleware is disabled. This is not safe for production.")
+ 
+if config.cors_allowed_origins:
+    origins = [origin.strip() for origin in config.cors_allowed_origins.split(",")]
+    logger.info("CORS middleware enabled for entire application", allowed_origins=origins)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
 logger.info("Mounted MCP application at /mcp")
 
 # Add unified middleware for the entire application
-config = get_config()
 if config.use_oauth:
     logger.info("OAuth middleware enabled for entire application.")
     app.add_middleware(
@@ -197,34 +261,3 @@ async def invoke_tool(request: Request) -> JSONResponse:
 
 # ... (All your existing code) ...
 
-# ==========================================
-# 🚑 EMERGENCY FIX: HOST HEADER REWRITER 127.0.0.1
-# ==========================================
-from starlette.types import ASGIApp, Scope, Receive, Send
-
-class ForceHostHeaderMiddleware:
-    """
-     Intercepts every request and forces the 'Host' header to be 'localhost'.
-     This bypasses the 'Invalid Host header' error coming from hidden validators.
-    """
-    def __init__(self, app: ASGIApp):
-        self.app = app
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if scope["type"] == "http":
-            # Create a new list of headers, replacing the 'host' header
-            new_headers = []
-            for name, value in scope["headers"]:
-                if name == b"host":
-                    new_headers.append((b"host", b"localhost:8080"))
-                else:
-                    new_headers.append((name, value))
-            
-            # Apply the new headers to the request scope
-            scope["headers"] = new_headers
-        logger.info("EMERGENCY FIX: HOST HEADER REWRITER.")
-            
-        await self.app(scope, receive, send)
-
-# Add this LAST so it runs FIRST (FastAPI/Starlette logic)
-app.add_middleware(ForceHostHeaderMiddleware)
